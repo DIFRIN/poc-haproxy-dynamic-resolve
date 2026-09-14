@@ -1,0 +1,1 @@
+# poc-haproxy-dynamic-resolve
