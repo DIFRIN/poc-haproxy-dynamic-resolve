@@ -1,0 +1,771 @@
+================================================================================
+PUT workload re-measurement — transcript
+started: 2026-09-14T17:46:31Z
+host: 20 vCPU, 31 GB RAM
+================================================================================
+
+================================================================================
+E. FUNCTIONAL RE-CHECK — TARGET (arch=target), 2026-09-14T17:46:56Z
+================================================================================
+
+--- E.1  PUT / with valid client cert through the VIP (TARGET, -mode=tls) ---
+[client] phase measure: 3s concurrency=2 target_rps=0 sni=iot0000001.test.domain (pinned by -servername) request=PUT / body=256B proxy=172.28.0.10:443
+{
+  "achieved_rps": 568.939,
+  "attempts": 1707,
+  "body_bytes": 256,
+  "bytes_received": 5862682,
+  "bytes_sent": 5924731,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 2,
+  "connect_error": 0,
+  "duration_seconds": 3,
+  "errors_sample": [
+    "timeout: read tcp 172.28.0.2:9554-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: context deadline exceeded"
+  ],
+  "handshakes_completed": 1706,
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {
+    "200": 1705
+  },
+  "identity_checked": 1705,
+  "identity_mismatch": 0,
+  "insecure_skip_verify": false,
+  "label": "E1-target-put",
+  "latency_ms": {
+    "p50": 3.322,
+    "p90": 4.043,
+    "p95": 4.214,
+    "p99": 4.52,
+    "max": 7.209,
+    "mean": 3.514
+  },
+  "latency_samples": 1707,
+  "latency_scope": "per request: from just before the TCP connect to the last byte of the HTTP response (TCP+TLS+PUT); refused attempts are timed up to the refusal",
+  "measured_seconds": 3,
+  "method": "PUT",
+  "mode": "tls",
+  "mtls_rejected": 0,
+  "notes": [
+    "DIRECT TLS, no CONNECT: this mode exercises the TARGET architecture (SNI passthrough, ADR 0012). The proxy reads the SNI without terminating TLS, resolves it, validates the RESOLVED address, and tunnels raw TLS to the IoT Mock.",
+    "TARGET refuses a bad destination by CLOSING THE TCP CONNECTION -- TCP mode has no HTTP status to send. A destination-policy rejection therefore appears as tls_error with an EOF/reset error string, never as an HTTP status. For the security corpus this is the expected (passing) result.",
+    "mtls_rejected is reserved for a TLS alert sent by the IoT Mock about OUR client certificate (missing, expired, untrusted). It is distinguished from tls_error by the TLS alert number, not by string matching.",
+    "latency_ms covers EVERY attempt including refused ones: for the security corpus the elapsed time to the refusal is itself the measurement.",
+    "identity_checked/identity_mismatch compare the `sni` field in the IoT Mock's response against the name this client actually requested. The device-facing PUT response carries that field on every successful request, so the identity check is active for the measured workload itself, not only for GET /.",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed.",
+    "the measured workload request is PUT / with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload."
+  ],
+  "outcomes_sample": [
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 5.954,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 7.209,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.518,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.626,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.363,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.343,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.255,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.268,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.34,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 3.441,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:46:57Z\"}"
+    }
+  ],
+  "path": "/",
+  "proxy": "172.28.0.10:443",
+  "random_host": false,
+  "servername": "iot0000001.test.domain (pinned by -servername)",
+  "start_time": "2026-09-14T17:46:57Z",
+  "success": 1705,
+  "target_rps": 0,
+  "timeout": 2,
+  "tls_error": 0,
+  "warmup_seconds": 0,
+  "zone": "test.domain"
+}
+
+--- E.2  PUT with a BAD client certificate must still be rejected at the TLS layer (TARGET) ---
+### no client certificate presented:
+E2-nocert: attempts=1401 success=0 mtls_rejected=1400 tls_error=0 http_error=0 http_codes={}
+   errors: ['mtls_rejected: remote error: tls: certificate required', 'timeout: context deadline exceeded']
+### expired client certificate:
+E2-expired: attempts=1032 success=0 mtls_rejected=1031 tls_error=0 http_error=0 http_codes={}
+   errors: ['mtls_rejected: remote error: tls: expired certificate', 'timeout: context deadline exceeded']
+### untrusted (rogue CA) client certificate:
+E2-untrusted: attempts=1410 success=0 mtls_rejected=1409 tls_error=0 http_error=0 http_codes={}
+   errors: ['mtls_rejected: remote error: tls: certificate required', 'timeout: read tcp 172.28.0.2:4258->172.28.0.10:443: i/o timeout']
+
+--- E.3  SSRF policy must still refuse ssrf-loopback.test.domain (TARGET) ---
+ssrf-loopback: attempts=5188 success=0 tls_error=5187 http_codes={} mtls_rejected=0
+   errors: ['tls_error: EOF', 'timeout: context deadline exceeded']
+
+================================================================================
+D.1  SHORT-LIVED mTLS PUT THROUGHPUT — TARGET (arch=target)
+     45s measured, 10s warmup, 200 workers, -rps=6000, -random-host, -host-count=1000000
+     2026-09-14T17:47:30Z
+================================================================================
+
+=== readiness gate ===
+[ready] gating on stack readiness (arch=target)
+  PostgreSQL seeded with 1000000 IoT records                OK
+  PowerDNS 1 (172.28.0.41) answers for test.domain          OK
+  PowerDNS 2 (172.28.0.42) answers for test.domain          OK
+  local dnsdist (172.28.0.31) answers                       OK
+  exactly one HAProxy node owns the VIP 172.28.0.10         OK
+  IoT Mock healthy                                          OK
+
+[ready] stack is ready
+
+=== SCENARIO: end-to-end mTLS, 6000 rps target, 200 workers, 45s, arch=target, workload=PUT / body=256B ===
+  metrics -> benchmark/results/metrics-target-mtls-put-6000rps-before.txt
+[client] phase warmup: 10s concurrency=200 target_rps=6000 sni=iot0000001.test.domain (pinned by -servername) request=PUT / body=256B proxy=172.28.0.10:443
+[client] phase measure: 45s concurrency=200 target_rps=6000 sni=iot0000001.test.domain (pinned by -servername) request=PUT / body=256B proxy=172.28.0.10:443
+[client] attempts=15864 success=15864 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+[client] attempts=30527 success=30527 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+[client] attempts=47578 success=47578 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+[client] attempts=63678 success=63678 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+{
+  "achieved_rps": 1595.315,
+  "attempts": 71797,
+  "body_bytes": 256,
+  "bytes_received": 246990333,
+  "bytes_sent": 249155390,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 200,
+  "connect_error": 0,
+  "duration_seconds": 45,
+  "errors_sample": [
+    "timeout: read tcp 172.28.0.2:26530-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: dial tcp 172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:25786-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:27494-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:28312-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:28126-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:27344-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:26028-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:27516-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:26594-\u003e172.28.0.10:443: i/o timeout"
+  ],
+  "handshakes_completed": 71738,
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {
+    "200": 71591
+  },
+  "identity_checked": 71591,
+  "identity_mismatch": 0,
+  "insecure_skip_verify": false,
+  "label": "target-mtls-put-6000rps",
+  "latency_ms": {
+    "p50": 107.347,
+    "p90": 230.492,
+    "p95": 276.64,
+    "p99": 389.624,
+    "max": 912.433,
+    "mean": 119.592
+  },
+  "latency_samples": 71797,
+  "latency_scope": "per request: from just before the TCP connect to the last byte of the HTTP response (TCP+TLS+PUT); refused attempts are timed up to the refusal",
+  "measured_seconds": 45.005,
+  "method": "PUT",
+  "mode": "tls",
+  "mtls_rejected": 0,
+  "notes": [
+    "DIRECT TLS, no CONNECT: this mode exercises the TARGET architecture (SNI passthrough, ADR 0012). The proxy reads the SNI without terminating TLS, resolves it, validates the RESOLVED address, and tunnels raw TLS to the IoT Mock.",
+    "TARGET refuses a bad destination by CLOSING THE TCP CONNECTION -- TCP mode has no HTTP status to send. A destination-policy rejection therefore appears as tls_error with an EOF/reset error string, never as an HTTP status. For the security corpus this is the expected (passing) result.",
+    "mtls_rejected is reserved for a TLS alert sent by the IoT Mock about OUR client certificate (missing, expired, untrusted). It is distinguished from tls_error by the TLS alert number, not by string matching.",
+    "latency_ms covers EVERY attempt including refused ones: for the security corpus the elapsed time to the refusal is itself the measurement.",
+    "identity_checked/identity_mismatch compare the `sni` field in the IoT Mock's response against the name this client actually requested. The device-facing PUT response carries that field on every successful request, so the identity check is active for the measured workload itself, not only for GET /.",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed.",
+    "the measured workload request is PUT / with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload."
+  ],
+  "outcomes_sample": [
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 127.449,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 89.63,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 145.301,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 131.399,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 145.064,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 148.384,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 136.87,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 144.366,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 89.262,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 93.689,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-14T17:47:36Z\"}"
+    }
+  ],
+  "path": "/",
+  "proxy": "172.28.0.10:443",
+  "random_host": true,
+  "servername": "iot0000001.test.domain (pinned by -servername)",
+  "start_time": "2026-09-14T17:47:36Z",
+  "success": 71591,
+  "target_rps": 6000,
+  "timeout": 206,
+  "tls_error": 0,
+  "warmup_seconds": 10,
+  "zone": "test.domain"
+}
+  metrics -> benchmark/results/metrics-target-mtls-put-6000rps-after.txt
+  result -> benchmark/results/target-mtls-put-6000rps.json
+
+=== done ===
+
+--- IoT Mock server-side counters after the TARGET short-lived run (CUMULATIVE since the mock was started; includes the E.1-E.3 functional checks that ran first) ---
+$ docker exec poc-iot-mock wget -qO- http://127.0.0.1:9090/stats
+{
+  "connections_total": 96023,
+  "connections_active": 0,
+  "tls_handshakes_total": 91973,
+  "tls_handshake_failures_total": 4050,
+  "mtls_rejections_total": 3841,
+  "http_requests_total": 91971,
+  "http_errors_total": 0,
+  "request_duration_seconds_sum": 54.18793790399975,
+  "request_duration_seconds_count": 91971,
+  "bytes_sent_total": 11588346
+}
+
+================================================================================
+Switching architecture to CURRENT: ./scripts/up.sh current   (2026-09-14T17:48:57Z)
+================================================================================
+  PowerDNS 1 (172.28.0.41) answers for test.domain          OK
+  PowerDNS 2 (172.28.0.42) answers for test.domain          OK
+  exactly one HAProxy node owns the VIP 172.28.0.10         OK
+  IoT Mock healthy                                          OK
+
+[ready] stack is ready
+
+=== containers ===
+NAME            SERVICE     STATUS
+poc-haproxy-1   haproxy-1   Up 4 seconds
+poc-haproxy-2   haproxy-2   Up 4 seconds
+poc-iot-mock    iot-mock    Up 10 seconds (healthy)
+poc-pdns-1      pdns-1      Up 4 seconds
+poc-pdns-2      pdns-2      Up 4 seconds
+poc-postgres    postgres    Up 10 seconds (healthy)
+poc-squid-1     squid-1     Up 10 seconds
+poc-squid-2     squid-2     Up 10 seconds
+
+=== VIP ownership (must be exactly ONE node) ===
+  haproxy-1: OWNS 172.28.0.10   <-- ACTIVE
+  haproxy-2: no VIP        (standby)
+
+=== active node's proxy stack ===
+  node haproxy-1 health check:
+    OK (exit 0)
+
+================================================================================
+E. FUNCTIONAL RE-CHECK — CURRENT (arch=current), 2026-09-14T17:49:18Z
+================================================================================
+
+--- E.1  PUT / with valid client cert through the VIP (CURRENT, -mode=connect, CONNECT -> Squid -> IoT device) ---
+  attempts               1495
+  success                1476
+  connect_rejected       0
+  connect_error          0
+  tls_error              0
+  mtls_rejected          0
+  http_error             0
+  timeout                19
+  http_status_codes      {'200': 1476}
+  connect_status_codes   {'200': 1478}
+  connect_status_codes   {'200': 1478}
+  method                 PUT
+  path                   /
+  body_bytes             256
+  first response body: None
+
+--- E.1b  verbatim curl PUT through the CURRENT proxy (CURRENT, CONNECT -> Squid -> IoT device) ---
+{"bytes":2057,"method":"PUT","path":"/","peer":"iot-client-valid","sni":"iot0000001.test.domain","time":"2026-09-14T17:49:28Z"}
+http=200
+(the PUT body above is the 1903-byte ca.crt file, sent as the request body; the device echoes the byte count it consumed)
+  (ca.crt is actually 2057 bytes — that is the body the device reported consuming above)
+
+--- E.2  PUT with a BAD client certificate must still be rejected at the TLS layer (CURRENT) ---
+### no client certificate presented:
+E2c-nocert: attempts=4328 success=0 connect_rejected=0 connect_error=0 mtls_rejected=1172 tls_error=0 http_error=0 http_codes={} connect_codes={'200': 1172}
+   errors: ['mtls_rejected: remote error: tls: certificate required', 'timeout: dial tcp 172.28.0.10:3128: i/o timeout']
+### expired client certificate:
+E2c-expired: attempts=901 success=0 connect_rejected=0 connect_error=0 mtls_rejected=900 tls_error=0 http_error=0 http_codes={} connect_codes={'200': 901}
+   errors: ['mtls_rejected: remote error: tls: expired certificate', 'timeout: context deadline exceeded']
+### untrusted (rogue CA) client certificate:
+E2c-untrusted: attempts=1170 success=0 connect_rejected=0 connect_error=0 mtls_rejected=1169 tls_error=0 http_error=0 http_codes={} connect_codes={'200': 1170}
+   errors: ['mtls_rejected: remote error: tls: certificate required', 'timeout: write tcp 172.28.0.2:33892->172.28.0.10:3128: i/o timeout']
+
+--- E.3  SSRF policy must still refuse ssrf-loopback.test.domain (CURRENT, CONNECT -> Squid) ---
+  ssrf-loopback: attempts=4424 success=0 connect_rejected=4423 connect_error=0 tls_error=0 http_error=0
+  connect_status_codes={'403': 4423}
+   errors: ['timeout: read tcp 172.28.0.2:9268->172.28.0.10:3128: i/o timeout']
+
+--- IoT Mock server-side counters BEFORE the CURRENT short-lived run ---
+{
+  "connections_total": 4722,
+  "connections_active": 0,
+  "tls_handshakes_total": 1478,
+  "tls_handshake_failures_total": 3244,
+  "mtls_rejections_total": 3242,
+  "http_requests_total": 1477,
+  "http_errors_total": 0,
+  "request_duration_seconds_sum": 0.023818067000000026,
+  "request_duration_seconds_count": 1477,
+  "bytes_sent_total": 186103
+}
+
+================================================================================
+D.1  SHORT-LIVED mTLS PUT THROUGHPUT — CURRENT (arch=current)
+     45s measured, 10s warmup, 200 workers, -rps=6000, -random-host, -host-count=1000000
+     2026-09-14T17:49:59Z
+================================================================================
+
+=== readiness gate ===
+[ready] gating on stack readiness (arch=current)
+  PostgreSQL seeded with 1000000 IoT records                OK
+  PowerDNS 1 (172.28.0.41) answers for test.domain          OK
+  PowerDNS 2 (172.28.0.42) answers for test.domain          OK
+  exactly one HAProxy node owns the VIP 172.28.0.10         OK
+  IoT Mock healthy                                          OK
+
+[ready] stack is ready
+
+=== SCENARIO: end-to-end mTLS, 6000 rps target, 200 workers, 45s, arch=current, workload=PUT / body=256B ===
+  metrics -> benchmark/results/metrics-current-mtls-put-6000rps-before.txt
+[client] phase warmup: 10s concurrency=200 target_rps=6000 persistent=false request=PUT / body=256B proxy=172.28.0.10:3128
+[client] phase measure: 45s concurrency=200 target_rps=6000 persistent=false request=PUT / body=256B proxy=172.28.0.10:3128
+[client] attempts=11863 success=11863 rejected=0 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+[client] attempts=24635 success=24635 rejected=0 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+[client] attempts=37504 success=37504 rejected=0 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+[client] attempts=50827 success=50827 rejected=0 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+{
+  "achieved_rps": 1272.237,
+  "attempts": 57254,
+  "body_bytes": 256,
+  "bytes_received": 198946311,
+  "bytes_sent": 204473030,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 200,
+  "connect_error": 0,
+  "connect_rejected": 0,
+  "connect_status_codes": {
+    "200": 57243
+  },
+  "duration_seconds": 45,
+  "errors_sample": [
+    "timeout: read tcp 172.28.0.2:56732-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: dial tcp 172.28.0.10:3128: i/o timeout",
+    "timeout: write tcp 172.28.0.2:56836-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:56596-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:57840-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:57510-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:55662-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:57030-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:57670-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:57684-\u003e172.28.0.10:3128: i/o timeout"
+  ],
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {
+    "200": 57058
+  },
+  "insecure_skip_verify": false,
+  "label": "current-mtls-put-6000rps",
+  "latency_ms": {
+    "p50": 135.34,
+    "p90": 264.985,
+    "p95": 313.965,
+    "p99": 433.763,
+    "max": 871.236,
+    "mean": 148.864
+  },
+  "latency_samples": 57254,
+  "latency_scope": "short_lived: per-request latency measured from just before the CONNECT write to the last byte of the HTTP response (TCP+CONNECT+TLS+PUT)",
+  "measured_seconds": 45.003,
+  "method": "PUT",
+  "mode": "connect",
+  "mtls_rejected": 0,
+  "notes": [
+    "connect_rejected means the proxy refused the CONNECT; the refusal status code is counted in connect_status_codes. It is an expected outcome for the security tests, not an error.",
+    "latency_ms are exact percentiles (nearest-rank) over the merged, sorted per-worker samples; memory scales with sample count (8 bytes/sample, see latency_samples).",
+    "bytes_sent/bytes_received are raw TCP bytes, so they include CONNECT framing and TLS record overhead.",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed.",
+    "the measured workload request is PUT / with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload.",
+    "-warmup traffic runs BEFORE the measurement window, so total wall time is warmup_seconds + duration_seconds; warmup counters and latency samples were discarded."
+  ],
+  "path": "/",
+  "persistent": false,
+  "proxy": "172.28.0.10:3128",
+  "random_host": true,
+  "requests_per_tunnel": 100,
+  "servername": "\u003cper-request target host\u003e",
+  "start_time": "2026-09-14T17:50:06Z",
+  "success": 57058,
+  "target_host": "iot0000001.test.domain",
+  "target_port": 443,
+  "target_rps": 6000,
+  "timeout": 196,
+  "tls_error": 0,
+  "tunnels_opened": 57100,
+  "warmup_seconds": 10
+}
+  metrics -> benchmark/results/metrics-current-mtls-put-6000rps-after.txt
+  result -> benchmark/results/current-mtls-put-6000rps.json
+
+=== done ===
+
+--- IoT Mock server-side counters AFTER the CURRENT short-lived run ---
+{
+  "connections_total": 77866,
+  "connections_active": 0,
+  "tls_handshakes_total": 74332,
+  "tls_handshake_failures_total": 3534,
+  "mtls_rejections_total": 3242,
+  "http_requests_total": 74329,
+  "http_errors_total": 0,
+  "request_duration_seconds_sum": 37.90146202099978,
+  "request_duration_seconds_count": 74329,
+  "bytes_sent_total": 9365455
+}
+
+--- IoT Mock server-side counters AFTER the CURRENT 10,000-tunnel run ---
+{
+  "connections_total": 87866,
+  "connections_active": 0,
+  "tls_handshakes_total": 84332,
+  "tls_handshake_failures_total": 3534,
+  "mtls_rejections_total": 3242,
+  "http_requests_total": 1581187,
+  "http_errors_total": 0,
+  "request_duration_seconds_sum": 121.65588147699108,
+  "request_duration_seconds_count": 1581187,
+  "bytes_sent_total": 199229563
+}
+
+--- resource usage sampled WHILE the 10,000 tunnels were held (peak lines) ---
+  conntrack: 62032/262144
+  conntrack: 62032/262144
+  conntrack: 62036/262144
+  ...
+--- sample 3 17:51:36Z
+  sockets: used 266
+
+--- resource cost of HOLDING 10,000 tunnels (sampled during the run; peak observed) ---
+  conntrack: 62036/262144
+  conntrack: 62032/262144
+  conntrack: 62031/262144
+  conntrack: 62030/262144
+  conntrack: 62028/262144
+  conntrack: 62022/262144
+  conntrack: 48748/262144
+  conntrack: 47037/262144
+  peak haproxy-1 FDs: 20033
+  peak squid FDs (either instance): 10011
+  peak TCP alloc: 60046
+  peak conntrack: 62036
+
+================================================================================
+Switching back to TARGET: ./scripts/up.sh target   (2026-09-14T17:53:16Z)
+================================================================================
+[ready] gating on stack readiness (arch=target)
+  PostgreSQL seeded with 1000000 IoT records                OK
+  PowerDNS 1 (172.28.0.41) answers for test.domain          OK
+  PowerDNS 2 (172.28.0.42) answers for test.domain          OK
+  local dnsdist (172.28.0.31) answers                       OK
+  exactly one HAProxy node owns the VIP 172.28.0.10         OK
+  IoT Mock healthy                                          OK
+[ready] stack is ready
+  haproxy-1: OWNS 172.28.0.10   <-- ACTIVE
+  haproxy-2: no VIP        (standby)
+    OK (exit 0)
+
+--- IoT Mock server-side counters BEFORE the TARGET short-lived run (fresh container, no functional traffic) ---
+{
+  "connections_total": 0,
+  "connections_active": 0,
+  "tls_handshakes_total": 0,
+  "tls_handshake_failures_total": 0,
+  "mtls_rejections_total": 0,
+  "http_requests_total": 0,
+  "http_errors_total": 0,
+  "request_duration_seconds_sum": 0,
+  "request_duration_seconds_count": 0,
+  "bytes_sent_total": 0
+}
+
+================================================================================
+D.1b  SHORT-LIVED mTLS PUT THROUGHPUT — TARGET, clean re-run
+      45s measured, 10s warmup, 200 workers, -rps=6000, -random-host, -host-count=1000000
+      (container counters start at zero: the first TARGET run was preceded by the functional checks)
+      2026-09-14T17:53:45Z
+================================================================================
+  "zone": "test.domain"
+}
+  metrics -> benchmark/results/metrics-target-mtls-put-6000rps-after.txt
+  result -> benchmark/results/target-mtls-put-6000rps.json
+
+=== done ===
+
+--- IoT Mock server-side counters AFTER the TARGET short-lived run ---
+{
+  "connections_total": 90293,
+  "connections_active": 0,
+  "tls_handshakes_total": 90035,
+  "tls_handshake_failures_total": 258,
+  "mtls_rejections_total": 0,
+  "http_requests_total": 90034,
+  "http_errors_total": 0,
+  "request_duration_seconds_sum": 56.10032708299957,
+  "request_duration_seconds_count": 90034,
+  "bytes_sent_total": 11344284
+}
+
+================================================================================
+E.4  Regression check: the b1 TARGET functional group (health probe + PUT workload + bad certs)
+     2026-09-14T17:55:30Z
+================================================================================
+
+------------------------------------------------------------------------
+SCENARIO: genuine SERVFAIL (all PowerDNS down) — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T18:03:09.145Z
+  both PowerDNS stopped at 2026-09-14T18:03:09.903Z
+  dnsdist rcode with every backend down: '<no response at all>'
+  dig output: ;; communications error to 172.28.0.31#53: timed out ;; no servers could be reached
+  FINDING: dnsdist DROPS the query when no backend is up. It does not return
+  SERVFAIL as keepalived/checks/target.sh documents, so the health check does
+  NOT stay healthy -- it fails on BOTH nodes (verified in the logs below).
+  active node health check with every backend down: exit=0
+  keepalived priority, active node:
+      Mon Sep 14 18:02:23 2026: VRRP_Script(chk_node) failed (exited with status 1)
+      Mon Sep 14 18:02:23 2026: (DC1) Changing effective priority from 150 to 90
+      Mon Sep 14 18:02:27 2026: VRRP_Script(chk_node) succeeded
+      Mon Sep 14 18:02:27 2026: (DC1) Changing effective priority from 90 to 150
+  keepalived priority, peer node:
+      Mon Sep 14 17:53:35 2026: (DC1) Changing effective priority from 100 to 40
+      Mon Sep 14 17:53:39 2026: (DC1) Changing effective priority from 40 to 100
+  NOTE: both nodes degrade (150->90 and 100->40), so the incumbent master keeps
+  the higher effective priority and the VIP stays put by priority arithmetic.
+  The required outcome holds; it is the documented reason that does not.
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : no_failures samples=145 ok=145
+PASS  B5 b5.5-servfail: VIP DID NOT MOVE (still haproxy-1)
+  probe window detail: no_failures samples=145 ok=145
+  restored; VIP owner: haproxy-1
+
+---- final state ----
+  VIP owner            : haproxy-1
+  probe recovery       : no_failures samples=118 ok=118 / no_failures samples=145 ok=145
+  b5.1 probe: no_failures samples=118 ok=118
+  b5.2 probe: no_failures samples=115 ok=115
+  b5.3 probe: failures=3 samples=137 first_fail=2026-09-14T18:00:27.462Z last_fail=2026-09-14T18:00:33.903Z span_ms=6441
+  b5.4 probe: failures=1 samples=198 first_fail=2026-09-14T18:01:30.112Z last_fail=2026-09-14T18:01:30.112Z span_ms=0
+  b5.5-nx probe: no_failures samples=122 ok=122
+  b5.5-servfail probe: no_failures samples=145 ok=145
+
+---- b5-failover: 16 PASS, 1 FAIL, 0 SKIP ----
+
+[run-all] finished 2026-09-14T18:03:58Z rc=1
+
+================================================================================
+FINAL STATE CHECK  2026-09-14T18:04:19Z
+================================================================================
+COMPOSE_PROFILES=target
+ARCH=target
+
+$ ./scripts/wait-ready.sh
+[ready] gating on stack readiness (arch=target)
+  PostgreSQL seeded with 1000000 IoT records                OK
+  PowerDNS 1 (172.28.0.41) answers for test.domain          OK
+  PowerDNS 2 (172.28.0.42) answers for test.domain          OK
+  local dnsdist (172.28.0.31) answers                       OK
+  exactly one HAProxy node owns the VIP 172.28.0.10         OK
+  IoT Mock healthy                                          OK
+
+[ready] stack is ready
+wait-ready exit=0
+
+$ ./scripts/status.sh
+=== containers ===
+NAME            SERVICE     STATUS
+poc-dnsdist-1   dnsdist-1   Up 3 minutes
+poc-dnsdist-2   dnsdist-2   Up 10 minutes
+poc-haproxy-1   haproxy-1   Up About a minute
+poc-haproxy-2   haproxy-2   Up 10 minutes
+poc-iot-mock    iot-mock    Up 10 minutes (healthy)
+poc-pdns-1      pdns-1      Up 34 seconds
+poc-pdns-2      pdns-2      Up 34 seconds
+poc-postgres    postgres    Up 10 minutes (healthy)
+
+=== VIP ownership (must be exactly ONE node) ===
+  haproxy-1: OWNS 172.28.0.10   <-- ACTIVE
+  haproxy-2: no VIP        (standby)
+
+=== active node's proxy stack ===
+  node haproxy-1 health check:
+    OK (exit 0)
+
+--- post-test smoke: PUT through the VIP on the restored TARGET stack ---
+{"bytes":16,"method":"PUT","path":"/","peer":"iot-client-valid","sni":"iot0000001.test.domain","time":"2026-09-14T18:04:27Z"}
+http=200
+--- and the health probe (GET) still answers "ok" ---
+okhttp=200

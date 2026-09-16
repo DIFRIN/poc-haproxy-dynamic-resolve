@@ -1,0 +1,137 @@
+# tunnel resource snapshot sampled WHILE the 10,000 tunnels are held (during the run)
+# 2026-09-14T17:51:25Z
+
+================================================================================
+D.2  10,000 SIMULTANEOUS TUNNELS — CURRENT (arch=current)
+     -mode=connect -persistent -requests-per-tunnel=1000000 -concurrency=10000
+     TARGET is not run: -mode=tls has no persistent tunnel reuse, so it is not comparable.
+     2026-09-14T17:51:25Z
+================================================================================
+--- sample 1 17:51:25Z
+  sockets: used 260
+  TCP: inuse 6 orphan 0 tw 0 alloc 44 mem 59
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 47023/262144
+  haproxy-haproxy-1 FDs: 33
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 11
+  squid-830ea78f5f0e FDs: 11
+--- sample 2 17:51:30Z
+  sockets: used 298
+  TCP: inuse 7 orphan 0 tw 0 alloc 45 mem 59
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 47037/262144
+  haproxy-haproxy-1 FDs: 33
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 738
+  squid-830ea78f5f0e FDs: 1820
+--- sample 3 17:51:36Z
+  sockets: used 266
+  TCP: inuse 7 orphan 0 tw 0 alloc 60046 mem 6714
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 62030/262144
+  haproxy-haproxy-1 FDs: 20033
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 10011
+  squid-830ea78f5f0e FDs: 10011
+--- sample 4 17:51:42Z
+  sockets: used 274
+  TCP: inuse 7 orphan 0 tw 0 alloc 60046 mem 7994
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 62036/262144
+  haproxy-haproxy-1 FDs: 20033
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 10011
+  squid-830ea78f5f0e FDs: 10011
+--- sample 5 17:51:48Z
+  sockets: used 282
+  TCP: inuse 7 orphan 0 tw 0 alloc 60046 mem 8250
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 62032/262144
+  haproxy-haproxy-1 FDs: 20033
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 10011
+  squid-830ea78f5f0e FDs: 10011
+--- sample 6 17:51:54Z
+  sockets: used 290
+  TCP: inuse 7 orphan 0 tw 0 alloc 60046 mem 7994
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 62032/262144
+  haproxy-haproxy-1 FDs: 20033
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 10011
+  squid-830ea78f5f0e FDs: 10011
+--- sample 7 17:52:00Z
+  sockets: used 304
+  TCP: inuse 7 orphan 0 tw 0 alloc 60046 mem 4922
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 62031/262144
+  haproxy-haproxy-1 FDs: 20033
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 10011
+  squid-830ea78f5f0e FDs: 10011
+--- sample 8 17:52:06Z
+  sockets: used 304
+  TCP: inuse 7 orphan 0 tw 0 alloc 60046 mem 4410
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 62028/262144
+  haproxy-haproxy-1 FDs: 20033
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 10011
+  squid-830ea78f5f0e FDs: 10011
+--- sample 9 17:52:12Z
+  sockets: used 312
+  TCP: inuse 7 orphan 0 tw 0 alloc 60046 mem 5690
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 62022/262144
+  haproxy-haproxy-1 FDs: 20033
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 10011
+  squid-830ea78f5f0e FDs: 10011
+--- sample 10 17:52:18Z
+  sockets: used 272
+  TCP: inuse 7 orphan 0 tw 0 alloc 45 mem 1338
+  UDP: inuse 4 mem 0
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+  conntrack: 48748/262144
+  haproxy-haproxy-1 FDs: 33
+  haproxy-haproxy-2 FDs: 33
+  squid-4814bbc79d83 FDs: 11
+  squid-830ea78f5f0e FDs: 11
+  "tls_error": 0,
+  "tunnels_opened": 10000,
+  "warmup_seconds": 0
+}
+  metrics -> benchmark/results/metrics-current-tunnels-10000-put-after.txt
+  resources -> benchmark/results/current-tunnels-10000-put-resources.txt
+
+=== done ===

@@ -1,0 +1,117 @@
+
+================================================================================
+GROUP b5-failover   2026-09-14T16:53:43Z   arch=current
+================================================================================
+arch=current  VIP=172.28.0.10  initial owner: haproxy-1
+notify-hook evidence written to /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/failover-notify-hook-evidence.txt
+  (the [vrrp] lines the design relies on are NOT in docker logs; see that file)
+baseline client traffic (before any fault): no
+  (WARNING: the architecture cannot serve a request even with the whole stack up,
+   so the recovery assertions below will fail for that reason rather than for a
+   failover reason. Recorded explicitly rather than silently.)
+
+------------------------------------------------------------------------
+SCENARIO: PowerDNS 1 (poc-pdns-1) stopped — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:53:47.183Z
+  dnsdist-1 backends before:
+      (metrics unavailable)
+  poc-pdns-1 stopped at 2026-09-14T16:53:54.221Z
+  dnsdist-1 backends during the outage:
+      (metrics unavailable)
+  no dnsdist in CURRENT; the PowerDNS-failover evidence is TARGET-only.
+SKIP  B5.1 dnsdist backend-state evidence (TARGET-only; arch=current)
+SKIP  B5.1 pdns-2 query-count evidence (TARGET-only; arch=current)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=112 samples=112 first_fail=2026-09-14T16:53:53.861Z last_fail=2026-09-14T16:54:18.854Z span_ms=24993
+PASS  B5 b5.1: VIP DID NOT MOVE (still haproxy-1)
+  restored; dnsdist-1 backends:
+      (metrics unavailable)
+
+------------------------------------------------------------------------
+SCENARIO: PowerDNS 2 (poc-pdns-2) stopped — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:54:35.759Z
+  poc-pdns-2 stopped at 2026-09-14T16:54:39.447Z
+  dnsdist-1 backends during the outage:
+      (metrics unavailable)
+  no dnsdist in CURRENT; the PowerDNS-failover evidence is TARGET-only.
+SKIP  B5.2 dnsdist backend-state evidence (TARGET-only; arch=current)
+SKIP  B5.2 pdns-1 query-count evidence (TARGET-only; arch=current)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=110 samples=110 first_fail=2026-09-14T16:54:39.100Z last_fail=2026-09-14T16:55:03.934Z span_ms=24834
+PASS  B5 b5.2: VIP DID NOT MOVE (still haproxy-1)
+  restored; dnsdist-1 backends:
+      (metrics unavailable)
+
+SCENARIO: local dnsdist failure — SKIPPED (CURRENT has no dnsdist layer)
+SKIP  B5.3 local dnsdist failure is TARGET-only (arch=current)
+
+------------------------------------------------------------------------
+SCENARIO: active HAProxy (haproxy-1) killed with SIGKILL — VIP MUST move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:55:21.277Z
+  docker kill poc-haproxy-1 issued at 2026-09-14T16:55:21.288Z
+  VIP owner after       : haproxy-2
+  VIP ownership series  : series=none -> haproxy-2 changes=1 first_change=2026-09-14T16:55:25.441Z
+  VIP moved             : yes (expected: yes; before=haproxy-1 after=haproxy-2)
+  probe window          : failures=197 samples=197 first_fail=2026-09-14T16:55:21.295Z last_fail=2026-09-14T16:56:06.191Z span_ms=44896
+PASS  B5 b5.4: VIP MOVED (haproxy-1 -> haproxy-2)
+  VIP settled on haproxy-2 after 318 ms of polling
+  keepalived transition on haproxy-2: 2026-09-14T16:55:24.448Z MASTER
+  VIP movement (trigger -> new owner MASTER, docker receipt clock): 3171 ms  [2026-09-14T16:55:21.277Z -> 2026-09-14T16:55:24.448Z]
+  probe window detail: failures=197 samples=197 first_fail=2026-09-14T16:55:21.295Z last_fail=2026-09-14T16:56:06.191Z span_ms=44896
+  (baseline traffic at the start of this run was: no)
+FAIL  B5.4 client traffic recovered through haproxy-2 (end-to-end mTLS 200; baseline=no)
+  killed node's restart policy state: exited restarts=0
+  after restore, VIP owner: haproxy-1
+  (both nodes advertise the same virtual_router_id; the node with priority 150 preempts
+   once its own health check passes again -- observed owner above reflects that)
+  (baseline traffic at the start of this run was: no)
+PASS  B5.4 traffic works after restore (owner=haproxy-1; baseline=no)
+
+------------------------------------------------------------------------
+SCENARIO: NXDOMAIN lookup storm — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:56:27.397Z
+  NXDOMAIN attempts: 45 (all refused: success=0)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=133 samples=133 first_fail=2026-09-14T16:56:27.421Z last_fail=2026-09-14T16:56:52.329Z span_ms=24908
+PASS  B5 b5.5-nx: VIP DID NOT MOVE (still haproxy-1)
+  probe window detail: failures=133 samples=133 first_fail=2026-09-14T16:56:27.421Z last_fail=2026-09-14T16:56:52.329Z span_ms=24908
+
+------------------------------------------------------------------------
+SCENARIO: genuine SERVFAIL (all PowerDNS down) — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:56:59.147Z
+  both PowerDNS stopped at 2026-09-14T16:56:59.821Z
+  (CURRENT has no dnsdist; Squid resolves directly against the PowerDNS pair)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+PASS  B5 b5.5-servfail: VIP DID NOT MOVE (still haproxy-1)
+  probe window detail: failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+  restored; VIP owner: haproxy-1
+
+---- final state ----
+  VIP owner            : haproxy-1
+  probe recovery       : failures=112 samples=112 first_fail=2026-09-14T16:53:53.861Z last_fail=2026-09-14T16:54:18.854Z span_ms=24993 / failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+  b5.1 probe: failures=112 samples=112 first_fail=2026-09-14T16:53:53.861Z last_fail=2026-09-14T16:54:18.854Z span_ms=24993
+  b5.2 probe: failures=110 samples=110 first_fail=2026-09-14T16:54:39.100Z last_fail=2026-09-14T16:55:03.934Z span_ms=24834
+  b5.4 probe: failures=197 samples=197 first_fail=2026-09-14T16:55:21.295Z last_fail=2026-09-14T16:56:06.191Z span_ms=44896
+  b5.5-nx probe: failures=133 samples=133 first_fail=2026-09-14T16:56:27.421Z last_fail=2026-09-14T16:56:52.329Z span_ms=24908
+  b5.5-servfail probe: failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+
+---- b5-failover: 6 PASS, 1 FAIL, 5 SKIP ----

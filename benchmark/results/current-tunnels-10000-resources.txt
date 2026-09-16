@@ -1,0 +1,14 @@
+# tunnel resource snapshot: current-tunnels-10000
+## active node HAProxy FDs
+  haproxy-haproxy-1 open FDs: 33
+  haproxy-haproxy-2 open FDs: 33
+## kernel socket state
+  sockets: used 261
+  TCP: inuse 5 orphan 0 tw 0 alloc 43 mem 2093
+  UDP: inuse 4 mem 256
+  UDPLITE: inuse 0
+  RAW: inuse 0
+  FRAG: inuse 0 memory 0
+## conntrack
+  count: 54256
+  max:   262144

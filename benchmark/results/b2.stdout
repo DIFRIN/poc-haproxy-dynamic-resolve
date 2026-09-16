@@ -1,0 +1,49 @@
+
+================================================================================
+GROUP b2-current-functional   2026-09-15T07:49:40Z   arch=current
+================================================================================
+VIP=172.28.0.10:38888 (CONNECT)  haproxy owner: haproxy-1
+B2.1  attempts=1394 success=1393 http_200=1393 connect_rejected=0 connect_error=0 tls_error=0
+B2.1  connect_status_codes={'200': 1394}
+PASS  B2.1 CONNECT iot0000001.test.domain:443 with a valid cert -> end-to-end mTLS request succeeds (200s=1393)
+
+B2.diag  direct CONNECT to squid-1 on SQUID_PORT=4443 (bypassing HAProxy entirely)
+      HTTP/1.1 200 Connection established
+      
+      status line : HTTP/1.1 200 Connection established
+      <no X-Squid-Error header>
+PASS  B2.diag Squid itself answered 200 Connection established — the CONNECT path through Squid works (HTTP/1.1 200 Connection established)
+B2.diag  squid-1's nameserver 172.28.0.41:53 answered the destination lookup: '172.28.0.60 '
+B2.diag  squid-1's nameserver 172.28.0.42:53 answered the destination lookup: '172.28.0.60 '
+B2.diag  Squid's configured nameservers answering on port 53: 2/2
+PASS  B2.diag Squid's nameservers answer the destination lookup on port 53, the only port Squid can query (POC port plan; NOT a CURRENT property)
+      raw evidence: /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b2-current-functional/squid-dns-port-evidence.txt
+
+B2.2  random identities from the 1M namespace
+iot0701990.test.domain success=495 http_200=495
+iot0729739.test.domain success=495 http_200=495
+iot0855263.test.domain success=501 http_200=501
+iot0987562.test.domain success=507 http_200=507
+iot0453499.test.domain success=519 http_200=519
+iot0256178.test.domain success=518 http_200=518
+B2.2  6/6 random identities served 200 (details: /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b2-current-functional/b2.2-random.txt)
+PASS  B2.2 every random identity reached the IoT Mock (6 ok, 0 failed)
+B2.3  client-expired.crt: attempts=584 success=0 http_200=0 mtls_rejected=583 connect_rejected=0 connect_error=0
+B2.3  connect_status_codes={'200': 584}  (a 200 here means the tunnel WAS established)
+B2.3  errors_sample: mtls_rejected: remote error: tls: expired certificate | timeout: context deadline exceeded
+PASS  B2.3 client-expired.crt: rejected by the IoT Mock inside the tunnel (mtls_rejected=583, http_200=0)
+PASS  B2.3 tunnel WAS established (CONNECT answered 200) and the failure is the inner mTLS handshake
+PASS  B2.3 raw error names the cause (/expired/): mtls_rejected: remote error: tls: expired certificate
+B2.4  client-untrusted.crt: attempts=763 success=0 http_200=0 mtls_rejected=762 connect_rejected=0 connect_error=0
+B2.4  connect_status_codes={'200': 763}  (a 200 here means the tunnel WAS established)
+B2.4  errors_sample: mtls_rejected: remote error: tls: certificate required | timeout: context deadline exceeded
+PASS  B2.4 client-untrusted.crt: rejected by the IoT Mock inside the tunnel (mtls_rejected=762, http_200=0)
+PASS  B2.4 tunnel WAS established (CONNECT answered 200) and the failure is the inner mTLS handshake
+PASS  B2.4 raw error names the cause (/certificate/): mtls_rejected: remote error: tls: certificate required
+B2.5  no client cert: attempts=759 success=0 mtls_rejected=758 connect_status_codes={'200': 759}
+B2.5  errors_sample: mtls_rejected: remote error: tls: certificate required | timeout: write tcp 172.28.0.2:39132->172.28.0.10:38888: i/o timeout
+PASS  B2.5 missing client cert: rejected by the IoT Mock inside the tunnel (mtls_rejected=758, success=0)
+PASS  B2.5 tunnel WAS established (CONNECT answered 200)
+PASS  B2.5 raw TLS alert is "certificate required": mtls_rejected: remote error: tls: certificate required
+
+---- b2-current-functional: 13 PASS, 0 FAIL, 0 SKIP ----

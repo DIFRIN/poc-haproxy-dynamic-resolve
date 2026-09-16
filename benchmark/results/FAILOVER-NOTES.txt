@@ -1,0 +1,42 @@
+FAILOVER TIMING EVIDENCE — what the notify hook emits vs what is available
+generated 2026-09-15T23:25:06.009Z by tests/failover/b5-failover.sh
+================================================================
+=== keepalived/notify.sh, run by hand inside poc-haproxy-1 ===
+$ /run/keepalived/notify.sh MASTER | cat -A
+[vrrp] 2026-09-15T23:25:04. state=MASTER node=haproxy-1$
+
+=== busybox date format support ===
+$ date -u +%Y-%m-%dT%H:%M:%S.%3NZ
+2026-09-15T23:25:05.
+$ date -u +%Y-%m-%dT%H:%M:%S.%NZ
+2026-09-15T23:25:05.
+$ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-09-15T23:25:05Z
+
+=== [vrrp] lines present in docker logs (both nodes) ===
+poc-haproxy-1: 0 lines matching [vrrp]
+poc-haproxy-2: 0 lines matching [vrrp]
+(expected 0: keepalived does not forward notify-script stdout)
+
+=== what IS available: keepalived console transitions, docker timestamped ===
+--- poc-haproxy-1 ---
+2026-09-15T23:04:36.286Z BACKUP (init)
+2026-09-15T23:04:39.936Z MASTER
+2026-09-15T23:09:49.698Z BACKUP
+2026-09-15T23:10:37.128Z MASTER
+2026-09-15T23:11:33.848Z BACKUP (init)
+2026-09-15T23:11:37.263Z MASTER
+2026-09-15T23:18:13.036Z BACKUP
+2026-09-15T23:19:00.462Z MASTER
+2026-09-15T23:19:56.785Z BACKUP (init)
+2026-09-15T23:20:00.201Z MASTER
+--- poc-haproxy-2 ---
+2026-09-15T23:04:36.312Z BACKUP (init)
+2026-09-15T23:09:49.698Z MASTER
+2026-09-15T23:10:37.128Z BACKUP
+2026-09-15T23:10:44.739Z MASTER
+2026-09-15T23:11:37.263Z BACKUP
+2026-09-15T23:18:13.032Z MASTER
+2026-09-15T23:19:00.462Z BACKUP
+2026-09-15T23:19:07.072Z MASTER
+2026-09-15T23:20:00.201Z BACKUP

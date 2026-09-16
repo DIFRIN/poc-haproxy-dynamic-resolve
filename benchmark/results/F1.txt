@@ -1,0 +1,104 @@
+
+================================================================================
+GROUP F1   2026-09-15T22:10:01Z   arch=target
+================================================================================
+F1 production-config fidelity — Squid access control
+  repo config under test : configs/squid/squid-1/squid.conf (production, verbatim)
+  counterfactual         : configs/squid/squid-1/squid.conf.hardened
+
+--- diff of the production config against the committed file ---
+--- /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/configs/squid/squid-1/squid.conf	2026-09-15 23:58:39.000000000 +0200
++++ /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/F1/proxy-configs/prod.conf	2026-09-16 00:10:01.715893700 +0200
+@@ -92,7 +92,7 @@
+ # corrupt CPU and latency measurements. The security tests read the
+ # client-observed status code instead, and tests/fidelity/ re-runs this ACL
+ # block with logging on to capture Squid's own verdicts as evidence.
+-access_log none
++access_log stdio:/var/log/squid/access.log
+ cache_log /var/log/squid/cache.log
+ cache_store_log none
+ 
+PASS  F1.prepares the production logging copy changes exactly 2 lines (got 2)
+
+--- diff of the counterfactual config: logging + source-ACL isolation ---
+--- /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/configs/squid/squid-1/squid.conf.hardened	2026-09-15 23:58:51.000000000 +0200
++++ /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/F1/proxy-configs/hard.conf	2026-09-16 00:10:01.842403600 +0200
+@@ -40,7 +40,7 @@
+ request_header_access X-Forwarded-For deny all
+ 
+ # --- access control: THE COUNTERFACTUAL POLICY ------------------------------
+-acl localnet      src 172.28.0.0/24
++acl localnet      src 172.31.0.99/32
+ acl CONNECT       method CONNECT
+ acl SSL_ports     port 443
+ acl manager       proto cache_object
+@@ -68,7 +68,7 @@
+ # requests fall through to `deny all`.
+ 
+ # --- logging ----------------------------------------------------------------
+-access_log none
++access_log stdio:/var/log/squid/access.log
+ cache_log /var/log/squid/cache.log
+ cache_store_log none
+ 
+PASS  F1.prepares the counterfactual's source ACL was rewritten to the test client, isolating the DESTINATION policy
+
+starting fid-prod (production ACLs) and fid-hard (counterfactual)...
+PASS  F1.setup both Squids are listening on :4443
+PASS  F1.setup client source 172.31.0.99 is outside env_network (0.0.0.0/32) — the ACLs are genuinely uncontrolled
+
+--- CONNECT matrix: production ACLs vs the counterfactual ---
+
+PASS  F1.prod loopback:443: production Squid ALLOWS this (real behaviour reproduced)
+PASS  F1.hard loopback:443: counterfactual Squid behaves as its policy specifies
+PASS  F1.prod squid-own-address:443: production Squid ALLOWS this (real behaviour reproduced)
+PASS  F1.hard squid-own-address:443: counterfactual Squid behaves as its policy specifies
+PASS  F1.prod cloud-metadata:443: production Squid ALLOWS this (real behaviour reproduced)
+PASS  F1.hard cloud-metadata:443: counterfactual Squid behaves as its policy specifies
+PASS  F1.prod rfc1918:443: production Squid ALLOWS this (real behaviour reproduced)
+PASS  F1.hard rfc1918:443: counterfactual Squid behaves as its policy specifies
+PASS  F1.prod public:443: production Squid ALLOWS this (real behaviour reproduced)
+PASS  F1.hard public:443: counterfactual Squid behaves as its policy specifies
+PASS  F1.prod non-safe-port:22: production Squid ALLOWS this (real behaviour reproduced)
+PASS  F1.hard non-safe-port:22: counterfactual Squid behaves as its policy specifies
+
+--- PRODUCTION Squid's own access log (its verdict, not ours) ---
+1789510205.275      0 172.31.0.99 TCP_TUNNEL/503 0 CONNECT 127.0.0.1:443 - HIER_DIRECT/127.0.0.1 -
+1789510205.653      0 172.31.0.99 TCP_TUNNEL/503 0 CONNECT 172.31.0.10:443 - HIER_DIRECT/172.31.0.10 -
+1789510232.816   2002 172.31.0.99 TCP_TUNNEL/503 0 CONNECT example.com:443 - HIER_NONE/- -
+1789510235.215      0 172.31.0.99 TCP_DENIED_ABORTED/403 0 CONNECT 172.31.0.10:22 - HIER_NONE/- text/html
+
+--- COUNTERFACTUAL Squid's own access log ---
+1789510205.441      0 172.31.0.99 TCP_DENIED_ABORTED/403 0 CONNECT 127.0.0.1:443 - HIER_NONE/- text/html
+1789510205.825      0 172.31.0.99 TCP_DENIED_ABORTED/403 0 CONNECT 172.31.0.10:443 - HIER_NONE/- text/html
+1789510218.204      0 172.31.0.99 TCP_DENIED_ABORTED/403 0 CONNECT 169.254.169.254:443 - HIER_NONE/- text/html
+1789510230.616      0 172.31.0.99 TCP_DENIED_ABORTED/403 0 CONNECT 10.0.0.5:443 - HIER_NONE/- text/html
+1789510235.032   2002 172.31.0.99 TCP_TUNNEL/503 0 CONNECT example.com:443 - HIER_NONE/- -
+1789510235.379      0 172.31.0.99 TCP_DENIED_ABORTED/403 0 CONNECT 172.31.0.10:22 - HIER_NONE/- text/html
+
+PASS  F1.log production ALLOWED CONNECT to loopback and completed the attempt (TCP_TUNNEL on 127.0.0.1)
+PASS  F1.log production ALLOWED CONNECT to its OWN address — proving 'deny to_localhost' is unreachable dead code
+PASS  F1.log production did NOT deny the cloud-metadata address 169.254.169.254 (absent from the log = pending, not refused)
+PASS  F1.log production did NOT deny the RFC1918 address 10.0.0.5 (absent from the log = pending, not refused)
+PASS  F1.log the ONLY production denial anywhere is port-based (no Safe_port entry for :22)
+PASS  F1.log production denied NOTHING on port 443 (zero TCP_DENIED on :443)
+PASS  F1.log the counterfactual Squid DID refuse the forbidden destinations (TCP_DENIED on :443)
+PASS  F1.log the counterfactual refused loopback specifically (the control production lacks)
+PASS  F1.log the counterfactual refused the cloud-metadata address specifically
+
+================================================================================
+FINDING — CURRENT ARCHITECTURE, CONFIRMED VULNERABILITY
+
+  Production Squid applies NO destination validation. Any client that can
+  reach it may CONNECT to loopback, to RFC1918, and to the cloud
+  instance-metadata address 169.254.169.254. 'http_access deny to_localhost'
+  is unreachable: both allows that precede it are unrestricted by source.
+
+  This is the production configuration, not a POC artefact. It is why
+  TARGET's resolved-address policy is net-new security capability rather
+  than a re-implementation of something CURRENT already had.
+
+  Full write-up: docs/adr/0028-production-config-fidelity.md
+================================================================================
+
+---- F1: 25 PASS, 0 FAIL, 0 SKIP ----

@@ -1,0 +1,6 @@
+iot0701990.test.domain success=495 http_200=495
+iot0729739.test.domain success=495 http_200=495
+iot0855263.test.domain success=501 http_200=501
+iot0987562.test.domain success=507 http_200=507
+iot0453499.test.domain success=519 http_200=519
+iot0256178.test.domain success=518 http_200=518

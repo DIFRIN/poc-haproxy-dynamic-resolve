@@ -1,0 +1,11 @@
+SQUID DNS PORT CHECK — can Squid resolve at all in this POC?
+generated 2026-09-15T07:49:45.209Z by tests/functional/b2-current-functional.sh
+================================================================================
+
+Squid's dns_nameservers directive takes NO port suffix, so Squid always
+queries port 53. Its configured nameservers are the two PowerDNS hosts:
+  squid/squid-1/squid.conf: dns_nameservers 172.28.0.41 172.28.0.42
+  POC DNS_PORT (from .env): 53
+
+  172.28.0.41    :53  172.28.0.60 
+  172.28.0.42    :53  172.28.0.60 

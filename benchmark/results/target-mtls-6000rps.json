@@ -1,0 +1,137 @@
+{
+  "achieved_rps": 1518.947,
+  "attempts": 68362,
+  "bytes_received": 226997453,
+  "bytes_sent": 218585998,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 200,
+  "connect_error": 0,
+  "duration_seconds": 45,
+  "errors_sample": [
+    "timeout: read tcp 172.28.0.2:28212-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: dial tcp 172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:28696-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:28778-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:26134-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:26142-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:28016-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:28156-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:28554-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:26294-\u003e172.28.0.10:443: i/o timeout"
+  ],
+  "handshakes_completed": 68224,
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {
+    "200": 68159
+  },
+  "identity_checked": 0,
+  "identity_mismatch": 0,
+  "insecure_skip_verify": false,
+  "label": "target-mtls-6000rps",
+  "latency_ms": {
+    "p50": 110.683,
+    "p90": 243.692,
+    "p95": 295.167,
+    "p99": 412.45,
+    "max": 968.567,
+    "mean": 125.429
+  },
+  "latency_samples": 68362,
+  "latency_scope": "per request: from just before the TCP connect to the last byte of the HTTP response (TCP+TLS+GET); refused attempts are timed up to the refusal",
+  "measured_seconds": 45.006,
+  "mode": "tls",
+  "mtls_rejected": 0,
+  "notes": [
+    "DIRECT TLS, no CONNECT: this mode exercises the TARGET architecture (SNI passthrough, ADR 0012). The proxy reads the SNI without terminating TLS, resolves it, validates the RESOLVED address, and tunnels raw TLS to the IoT Mock.",
+    "TARGET refuses a bad destination by CLOSING THE TCP CONNECTION -- TCP mode has no HTTP status to send. A destination-policy rejection therefore appears as tls_error with an EOF/reset error string, never as an HTTP status. For the security corpus this is the expected (passing) result.",
+    "mtls_rejected is reserved for a TLS alert sent by the IoT Mock about OUR client certificate (missing, expired, untrusted). It is distinguished from tls_error by the TLS alert number, not by string matching.",
+    "latency_ms covers EVERY attempt including refused ones: for the security corpus the elapsed time to the refusal is itself the measurement.",
+    "identity_checked/identity_mismatch compare the `sni` field in the IoT Mock's GET / response against the name this client actually requested. They are only non-zero when -path is an endpoint that returns that JSON (e.g. -path=/).",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed."
+  ],
+  "outcomes_sample": [
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 56.139,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 53.899,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 76.963,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 80.263,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 81.284,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 84.174,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 70.477,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 72.559,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 73.395,
+      "body": "ok"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 87.088,
+      "body": "ok"
+    }
+  ],
+  "path": "/health",
+  "proxy": "172.28.0.10:443",
+  "random_host": true,
+  "servername": "iot0000001.test.domain (pinned by -servername)",
+  "start_time": "2026-09-14T17:23:26Z",
+  "success": 68159,
+  "target_rps": 6000,
+  "timeout": 203,
+  "tls_error": 0,
+  "warmup_seconds": 10,
+  "zone": "test.domain"
+}

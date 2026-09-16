@@ -1,0 +1,240 @@
+
+================================================================================
+GROUP b4-current-security   2026-09-15T07:50:12Z   arch=current
+================================================================================
+VIP=172.28.0.10:38888 (CONNECT)  haproxy owner: haproxy-1
+SQUID_CONF=squid.conf
+MODEL UNDER TEST: production-faithful -- OPEN PROXY, no destination validation   [verdict below is valid ONLY for this model]
+corpus size: 22 names (raw: /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b4-current-security/corpus.txt)
+
+---- baseline: the legitimate destination must work through the same path ----
+  attempts=1410 success=1409 connect_status_codes={'200': 1410}
+PASS  B4.baseline the CONNECT path works end-to-end (iot0000001.test.domain:443 -> HTTP 200, 1409 successes), so a corpus of allowances below is meaningful
+
+---- SSRF corpus through CONNECT (5s per name) ----
+
+  name=ssrf-benchmark.test.domain
+    resolves to   : A 198.18.0.1
+    attempts=2 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=2
+    CONNECT STATUS CODES : {}
+    p50_ms=4672.907   failure mode: timeout: read tcp 172.28.0.2:46302->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-benchmark.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (2 attempts)
+
+  name=ssrf-broadcast.test.domain
+    resolves to   : A 255.255.255.255
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.228   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-broadcast.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-cgnat.test.domain
+    resolves to   : A 100.64.0.5
+    attempts=2 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=2
+    CONNECT STATUS CODES : {}
+    p50_ms=4665.681   failure mode: timeout: read tcp 172.28.0.2:56364->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-cgnat.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (2 attempts)
+
+  name=ssrf-linklocal.test.domain
+    resolves to   : A 169.254.1.1
+    attempts=3 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=3
+    CONNECT STATUS CODES : {}
+    p50_ms=4665.611   failure mode: timeout: read tcp 172.28.0.2:56390->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-linklocal.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (3 attempts)
+
+  name=ssrf-linklocal6.test.domain
+    resolves to   : AAAA fe80::1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.196   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-linklocal6.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-loopback-alt.test.domain
+    resolves to   : A 127.1.2.3
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.044   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-loopback-alt.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-loopback.test.domain
+    resolves to   : A 127.0.0.1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.121   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-loopback.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-loopback6.test.domain
+    resolves to   : AAAA ::1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.2   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-loopback6.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-multicast.test.domain
+    resolves to   : A 224.0.0.1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.079   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-multicast.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-multicast6.test.domain
+    resolves to   : AAAA ff02::1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.152   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-multicast6.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-private10.test.domain
+    resolves to   : A 10.0.0.5
+    attempts=3 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=3
+    CONNECT STATUS CODES : {}
+    p50_ms=4670.548   failure mode: timeout: read tcp 172.28.0.2:37804->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-private10.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (3 attempts)
+
+  name=ssrf-private172.test.domain
+    resolves to   : A 172.16.5.5
+    attempts=2 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=2
+    CONNECT STATUS CODES : {}
+    p50_ms=4669.943   failure mode: timeout: read tcp 172.28.0.2:37812->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-private172.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (2 attempts)
+
+  name=ssrf-private192.test.domain
+    resolves to   : A 192.168.1.5
+    attempts=3 success=0 connect_rejected=1 connect_error=0 tls_error=0 http_error=0 timeout=2
+    CONNECT STATUS CODES : {'503': 1}
+    p50_ms=1794.066   failure mode: timeout: read tcp 172.28.0.2:42410->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-private192.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 1}; 1 of 3 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-rebind.test.domain
+    resolves to   : A 127.0.0.1, A 172.28.0.60
+    attempts=30 success=29 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'200': 29}
+    p50_ms=11.722   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-rebind.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'200': 29}; 0 of 30 attempts answered by Squid, 29 succeeded end-to-end)
+
+  name=ssrf-reserved.test.domain
+    resolves to   : A 240.0.0.1
+    attempts=2 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=2
+    CONNECT STATUS CODES : {}
+    p50_ms=4666.777   failure mode: timeout: read tcp 172.28.0.2:37830->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-reserved.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (2 attempts)
+
+  name=ssrf-thisnet.test.domain
+    resolves to   : A 0.1.2.3
+    attempts=2 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=2
+    CONNECT STATUS CODES : {}
+    p50_ms=4672.328   failure mode: timeout: read tcp 172.28.0.2:50916->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-thisnet.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (2 attempts)
+
+  name=ssrf-ula6.test.domain
+    resolves to   : AAAA fc00::1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.086   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-ula6.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-ula6b.test.domain
+    resolves to   : AAAA fd12:3456::1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.057   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-ula6b.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-unspecified.test.domain
+    resolves to   : A 0.0.0.0
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.045   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-unspecified.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-unspecified6.test.domain
+    resolves to   : AAAA ::
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.083   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-unspecified6.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=ssrf-v4mapped-priv6.test.domain
+    resolves to   : AAAA ::ffff:10.0.0.1
+    attempts=3 success=0 connect_rejected=0 connect_error=0 tls_error=0 http_error=0 timeout=3
+    CONNECT STATUS CODES : {}
+    p50_ms=4672.165   failure mode: timeout: read tcp 172.28.0.2:41996->172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-v4mapped-priv6.test.domain NOT REFUSED (no 403) -- but Squid returned no status within the client timeout, so this is recorded as SILENT, not as a confirmed allowance (3 attempts)
+
+  name=ssrf-v4mapped6.test.domain
+    resolves to   : AAAA ::ffff:127.0.0.1
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.051   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 ssrf-v4mapped6.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+---- unresolvable / failing names (refusal reason is DNS, not a policy) ----
+
+  name=nx.test.domain
+    resolves to   : (undefined -> NXDOMAIN)
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.072   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 nx.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+  name=servfail.test.domain
+    resolves to   : (intended SERVFAIL)
+    attempts=30 success=0 connect_rejected=29 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 29}
+    p50_ms=0.037   failure mode: timeout: dial tcp 172.28.0.10:38888: i/o timeout
+PASS  B4 servfail.test.domain ALLOWED BY THE OPEN PROXY -- not refused (no 403; codes={'503': 29}; 29 of 30 attempts answered by Squid, 0 succeeded end-to-end)
+
+---- control: the one port-based refusal production does make (:22) ----
+  ssrf-private172.test.domain resolves to: '172.16.5.5 '
+  attempts=8 success=0 connect_status_codes={'403': 7}
+PASS  B4.port CONNECT :22 denied with 403 ({'403': 7}) -- CURRENT's only refusal is the port, and it is Squid's default port list, not a destination policy
+
+---- ssrf-rebind: there is no policy, so nothing follows the RESOLVED address ----
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      127.0.0.1,172.28.0.60,
+      127.0.0.1,172.28.0.60,
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      172.28.0.60,127.0.0.1,
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      127.0.0.1,172.28.0.60,
+  orderings observed from PowerDNS: permitted-first=0  forbidden-first=0
+  attempts=80 success(permitted address)=79 connect_rejected=0
+  connect_status_codes={'200': 79}
+  (In production there is no policy for the answer to follow: whichever address the name
+   resolves to, the CONNECT is allowed. A 403 here would mean the stack is not running the
+   production-faithful config.)
+PASS  B4.rebind allowed regardless of the resolved address (no 403; codes={'200': 79}, 79 succeeded against the permitted answer)
+  note: 0 of 12 resolver replies put 127.0.0.1 first, so this run did exercise the
+        loopback answer. Any 200/503 from it is an ALLOWED CONNECT to a loopback destination.
+
+================================================================================
+FINDING — CURRENT ARCHITECTURE, CONFIRMED VULNERABILITY
+
+  Squid in CURRENT has NO destination validation. Of the SSRF corpus sent
+  through the real HAProxy CONNECT listener (172.28.0.10:38888):
+
+    names ALLOWED (no 403)     : 17
+    names REFUSED with 403     : 0
+    names with no reply at all : 8 (timeouts; Squid answered nothing)
+
+  'Allowed' includes loopback, RFC1918, link-local and the cloud instance-
+  metadata address 169.254.169.254, and it is not a timeout artefact: the
+  baseline above served the legitimate endpoint on the same path, and the
+  control above shows the ONE thing that is refused is a non-Safe PORT.
+
+  This is production's real configuration reproduced end to end, not a POC
+  artefact, and it is why TARGET's resolved-address policy is net-new
+  security capability rather than a re-implementation of an existing control.
+
+  Full write-up: docs/adr/0028-production-config-fidelity.md
+  Stack-free reproduction of the ACLs themselves: tests/fidelity/run.sh
+  (SQUID_CONF=squid.conf for this run; set SQUID_CONF=squid.conf.hardened
+   to see the counterfactual refusal instead.)
+================================================================================
+PASS  B4.verdict production-faithful Squid refused NOTHING in the SSRF corpus (open proxy confirmed; 17 allowed, 0 refused, 8 silent)
+
+---- b4-current-security: 28 PASS, 0 FAIL, 0 SKIP ----

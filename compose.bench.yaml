@@ -1,0 +1,72 @@
+# ============================================================================
+# OVERLAY — workload generator / test client. Apply on top of a stack:
+#
+#   docker compose -f compose.yaml         -f compose.bench.yaml run --rm client ...
+#   docker compose -f compose.current.yaml -f compose.bench.yaml run --rm client ...
+#
+# Never started by `up -d`. A benchmark that shares a CPU budget with the stack
+# it is measuring produces numbers that mean nothing, so the client runs only
+# when explicitly invoked, and the harness gives it its own container.
+#
+# The benchmark harness (benchmark/run.sh) and the test suite (tests/lib.sh)
+# invoke this image with `docker run --rm --network ... poc-client`, which uses
+# the image's own ENTRYPOINT. This service exists for `docker compose run`,
+# interactive use and manual probes.
+# ============================================================================
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Go client — CONNECT, DNS queries and tunnel holding.
+  #
+  # Still required: Gatling is request-oriented and cannot hold N tunnels open
+  # (benchmark/hold-tunnels.py) or issue raw DNS queries (the DNS comparison).
+  # --------------------------------------------------------------------------
+  client:
+    build: ./images/client
+    image: poc-client
+    container_name: poc-client
+    # The binary is installed at /usr/local/bin/client by images/client/Dockerfile.
+    # An earlier revision pointed this at /client, which does not exist in the
+    # image -- `docker compose run client` failed with "executable file not
+    # found" while `docker run` worked, so the breakage was easy to miss.
+    entrypoint: ["/usr/local/bin/client"]
+    volumes:
+      - ./pki:/pki:ro
+      - ./benchmark/results:/results
+    networks:
+      dc-lan:
+        ipv4_address: ${CLIENT_IP}
+
+  # --------------------------------------------------------------------------
+  # Gatling — the standard-tooling runner for the TARGET and CURRENT HTTP
+  # workloads. Same requests as the Go client, but producing a familiar Gatling
+  # HTML report.
+  #
+  # Note there is no ipv4_address: Gatling runs on demand and may coexist with
+  # the client, so it takes a dynamic address rather than contending for
+  # CLIENT_IP.
+  #
+  # It sets its own DNS view (dnsmasq maps the whole zone to the VIP) — see
+  # images/gatling/entrypoint.sh for why that is essential rather than a
+  # convenience.
+  # --------------------------------------------------------------------------
+  gatling:
+    build: ./images/gatling
+    image: poc-gatling
+    container_name: poc-gatling
+    environment:
+      VIP: ${VIP_ADDRESS}
+      DNS_ZONE: ${DNS_ZONE}
+      MODE: ${GATLING_MODE:-target}
+      RPS: ${GATLING_RPS:-1000}
+      DURATION: ${GATLING_DURATION:-60}
+      DEVICES: ${DNS_RECORD_COUNT}
+      PROXY_PORT: ${CLIENT_PORT}
+      BODY_BYTES: ${GATLING_BODY_BYTES:-256}
+      RESULTS_DIR: /results
+    volumes:
+      - ./pki:/pki:ro
+      - ./benchmark/results/gatling:/results
+    networks:
+      dc-lan:

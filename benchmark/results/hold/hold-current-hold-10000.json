@@ -1,0 +1,67 @@
+{
+  "label": "current-hold-10000",
+  "mode": "connect",
+  "proxy": "172.28.0.10:38888",
+  "requested": 10000,
+  "established": 9085,
+  "primed": 9085,
+  "primed_failures": {
+    "RuntimeError": 165
+  },
+  "setup_seconds": 44.36,
+  "hold_seconds": 55.0,
+  "failures": {
+    "connect_refused": 750
+  },
+  "survival_samples": [
+    {
+      "t": 49.4,
+      "alive": 4247
+    },
+    {
+      "t": 54.4,
+      "alive": 4247
+    },
+    {
+      "t": 59.4,
+      "alive": 4247
+    },
+    {
+      "t": 64.4,
+      "alive": 4247
+    },
+    {
+      "t": 69.4,
+      "alive": 0
+    },
+    {
+      "t": 73.3,
+      "alive": 0
+    },
+    {
+      "t": 78.3,
+      "alive": 0
+    },
+    {
+      "t": 83.3,
+      "alive": 0
+    },
+    {
+      "t": 88.3,
+      "alive": 0
+    },
+    {
+      "t": 93.3,
+      "alive": 0
+    },
+    {
+      "t": 98.4,
+      "alive": 0
+    },
+    {
+      "t": 102.2,
+      "alive": 0
+    }
+  ],
+  "min_alive_during_hold": 0
+}

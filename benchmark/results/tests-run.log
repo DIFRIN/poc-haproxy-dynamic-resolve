@@ -1,0 +1,1357 @@
+================================================================================
+POC test run — exact commands and raw output
+assembled 2026-09-14T17:12:10Z
+architecture at assembly time: target
+================================================================================
+
+HOW THIS RUN WAS PRODUCED
+-------------------------
+  ./tests/functional/b1-target-functional.sh   # arch=target
+  ./tests/functional/b2-current-functional.sh  # arch=current
+  ./tests/security/b3-target-security.sh       # arch=target
+  ./tests/security/b4-current-security.sh      # arch=current
+  ./tests/failover/b5-failover.sh              # arch=target AND arch=current
+
+  # architecture switching (see the up.sh note below)
+  ./scripts/up.sh current|target && docker compose up -d --build
+  ./scripts/wait-ready.sh
+
+  # every client invocation is logged verbatim inside its group section,
+  # in the form: $ docker run ... poc-client <args>
+
+  NOTE ON ./scripts/up.sh: it is invoked as `./scripts/up.sh current`,
+  but it forwards "$@" to docker compose without shifting the architecture
+  argument off first (scripts/up.sh line 51: docker compose up -d --build "$@"),
+  so compose fails with 'no such service: current'. up.sh has already written
+  ARCH/COMPOSE_PROFILES into .env by then, so the run proceeded with a plain
+  'docker compose up -d --build'. Reported, not patched (out of scope).
+
+  RESULTS LAYOUT
+  --------------
+    tests-run.log            this file
+    <group>.txt              full stdout+stderr of one group, PASS/FAIL inline
+    <group>-<arch>.stdout    verbatim stdout for runs repeated per architecture
+    raw/<group>/*            every raw artifact: client JSON, probe series,
+                             VIP ownership series, DNS answers, dig output
+
+    FAILOVER-NOTES.txt       why failover timings come from keepalived's
+                             console log and not from the notify hook
+================================================================================
+
+
+################################################################################
+# b1-target-functional.txt
+################################################################################
+
+================================================================================
+GROUP b1-target-functional   2026-09-14T17:11:02Z   arch=target
+================================================================================
+VIP=172.28.0.10:443  haproxy owner: haproxy-1
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1
+[client] phase measure: 2s concurrency=2 target_rps=0 sni=iot0000001.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+B1.1  attempts=1136 success=1134 http_200=1134 tls_error=0 mtls_rejected=0 first_body=ok
+PASS  B1.1 valid SNI + valid client cert -> HTTP 200 (200s=1134, success=1134)
+PASS  B1.1 response body is exactly "ok" (got "ok")
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2
+[client] phase measure: 4s concurrency=4 target_rps=0 sni=<one random iotNNNNNNN name per request> path=/ proxy=172.28.0.10:443
+B1.2  attempts=3134 success=3130 http_200=3130 identity_checked=3130 identity_mismatch=0
+B1.2  sample: iot0527537.test.domain -> sni=iot0527537.test.domain
+PASS  B1.2 random identity answers 200 (200s=3130 of 3130 successes, 3130 identities checked)
+PASS  B1.2 server-observed SNI equals the name requested for every response (mismatches=0)
+PASS  B1.2 identity JSON present on every successful response (checked=3130 >= success=3130)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -client-cert=/pki/clients/client-expired.crt -client-key=/pki/clients/client-expired.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.3
+[client] phase measure: 2s concurrency=1 target_rps=0 sni=iot0000001.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+B1.3  client-expired.crt: attempts=680 success=0 http_200=0 mtls_rejected=678 tls_error=0
+B1.3  errors_sample: mtls_rejected: remote error: tls: expired certificate | timeout: write tcp 172.28.0.2:42910->172.28.0.10:443: i/o timeout
+PASS  B1.3 client-expired.crt rejected at the TLS layer (mtls_rejected=678, http_200=0)
+PASS  B1.3 raw error names the cause (matched /expired/): mtls_rejected: remote error: tls: expired certificate
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -client-cert=/pki/clients/client-untrusted.crt -client-key=/pki/clients/client-untrusted.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.4
+[client] phase measure: 2s concurrency=1 target_rps=0 sni=iot0000001.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+B1.4  client-untrusted.crt: attempts=929 success=0 http_200=0 mtls_rejected=928 tls_error=0
+B1.4  errors_sample: mtls_rejected: remote error: tls: certificate required | timeout: write tcp 172.28.0.2:51358->172.28.0.10:443: i/o timeout
+PASS  B1.4 client-untrusted.crt rejected at the TLS layer (mtls_rejected=928, http_200=0)
+PASS  B1.4 raw error names the cause (matched /certificate/): mtls_rejected: remote error: tls: certificate required
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5
+[client] phase measure: 2s concurrency=1 target_rps=0 sni=iot0000001.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+B1.5  no client cert: attempts=850 success=0 mtls_rejected=849 tls_error=0
+B1.5  errors_sample: mtls_rejected: remote error: tls: certificate required | timeout: read tcp 172.28.0.2:59096->172.28.0.10:443: i/o timeout
+PASS  B1.5 missing client cert rejected at the TLS layer (mtls_rejected=849, success=0)
+PASS  B1.5 raw TLS alert is "certificate required": mtls_rejected: remote error: tls: certificate required
+ok
+http=200
+B1.6  curl exit=0
+PASS  B1.6 verbatim curl --resolve --cert --key --cacert -> body "ok", http=200
+
+---- b1-target-functional: 12 PASS, 0 FAIL, 0 SKIP ----
+
+################################################################################
+# b3-target-security.txt
+################################################################################
+
+================================================================================
+GROUP b3-target-security   2026-09-14T16:27:52Z   arch=target
+================================================================================
+VIP=172.28.0.10:443  haproxy owner: haproxy-1
+corpus size: 22 names (raw: /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b3-target-security/corpus.txt)
+
+---- DNS: what the local dnsdist returns for each corpus name ----
+    NAME                           DB RECORDS                                     dnsdist-1 A (via the active node)
+    ssrf-benchmark.test.domain     A 198.18.0.1                                   198.18.0.1
+    ssrf-broadcast.test.domain     A 255.255.255.255                              255.255.255.255
+    ssrf-cgnat.test.domain         A 100.64.0.5                                   100.64.0.5
+    ssrf-linklocal.test.domain     A 169.254.1.1                                  169.254.1.1
+    ssrf-linklocal6.test.domain    AAAA fe80::1                                   (no A record)
+    ssrf-loopback-alt.test.domain  A 127.1.2.3                                    127.1.2.3
+    ssrf-loopback.test.domain      A 127.0.0.1                                    127.0.0.1
+    ssrf-loopback6.test.domain     AAAA ::1                                       (no A record)
+    ssrf-multicast.test.domain     A 224.0.0.1                                    224.0.0.1
+    ssrf-multicast6.test.domain    AAAA ff02::1                                   (no A record)
+    ssrf-private10.test.domain     A 10.0.0.5                                     10.0.0.5
+    ssrf-private172.test.domain    A 172.16.5.5                                   172.16.5.5
+    ssrf-private192.test.domain    A 192.168.1.5                                  192.168.1.5
+    ssrf-rebind.test.domain        A 127.0.0.1, A 172.28.0.60                     172.28.0.60,127.0.0.1
+    ssrf-reserved.test.domain      A 240.0.0.1                                    240.0.0.1
+    ssrf-thisnet.test.domain       A 0.1.2.3                                      0.1.2.3
+    ssrf-ula6.test.domain          AAAA fc00::1                                   (no A record)
+    ssrf-ula6b.test.domain         AAAA fd12:3456::1                              (no A record)
+    ssrf-unspecified.test.domain   A 0.0.0.0                                      0.0.0.0
+    ssrf-unspecified6.test.domain  AAAA ::                                        (no A record)
+    ssrf-v4mapped-priv6.test.domain AAAA ::ffff:10.0.0.1                           (no A record)
+    ssrf-v4mapped6.test.domain     AAAA ::ffff:127.0.0.1                          (no A record)
+    nx.test.domain                 (undefined -> NXDOMAIN)                        (no A record)
+    servfail.test.domain           (intended SERVFAIL)                            (no A record)
+
+---- SSRF corpus (6s per name, 8 req/s, timeout 5s) ----
+     (ssrf-rebind is excluded here and handled in its own section below: it has BOTH a
+      permitted and a forbidden answer, so "always refused" is the wrong assertion for it)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-benchmark.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-benchmark.test.domain
+    resolves to : A 198.18.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.504
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-benchmark.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.504ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-broadcast.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-broadcast.test.domain
+    resolves to : A 255.255.255.255
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.486
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-broadcast.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.486ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-cgnat.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-cgnat.test.domain
+    resolves to : A 100.64.0.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.49
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-cgnat.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.49ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-linklocal.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-linklocal.test.domain
+    resolves to : A 169.254.1.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.773
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-linklocal.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.773ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-linklocal6.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-linklocal6.test.domain
+    resolves to : AAAA fe80::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.8
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-linklocal6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.8ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-loopback-alt.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-loopback-alt.test.domain
+    resolves to : A 127.1.2.3
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.364
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback-alt.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.364ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-loopback.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-loopback.test.domain
+    resolves to : A 127.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.728
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.728ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-loopback6.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-loopback6.test.domain
+    resolves to : AAAA ::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.156
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.156ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-multicast.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-multicast.test.domain
+    resolves to : A 224.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.495
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-multicast.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.495ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-multicast6.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-multicast6.test.domain
+    resolves to : AAAA ff02::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.78
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-multicast6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.78ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-private10.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-private10.test.domain
+    resolves to : A 10.0.0.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.529
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private10.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.529ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-private172.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-private172.test.domain
+    resolves to : A 172.16.5.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.41
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private172.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.41ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-private192.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-private192.test.domain
+    resolves to : A 192.168.1.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.545
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private192.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.545ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-reserved.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-reserved.test.domain
+    resolves to : A 240.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.598
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-reserved.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.598ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-thisnet.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-thisnet.test.domain
+    resolves to : A 0.1.2.3
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.532
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-thisnet.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.532ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-ula6.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-ula6.test.domain
+    resolves to : AAAA fc00::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.684
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-ula6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.684ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-ula6b.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-ula6b.test.domain
+    resolves to : AAAA fd12:3456::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.499
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-ula6b.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.499ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-unspecified.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-unspecified.test.domain
+    resolves to : A 0.0.0.0
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.549
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-unspecified.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.549ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-unspecified6.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-unspecified6.test.domain
+    resolves to : AAAA ::
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.503
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-unspecified6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.503ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-v4mapped-priv6.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-v4mapped-priv6.test.domain
+    resolves to : AAAA ::ffff:10.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.487
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-v4mapped-priv6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.487ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-v4mapped6.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=ssrf-v4mapped6.test.domain
+    resolves to : AAAA ::ffff:127.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.244
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-v4mapped6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.244ms)
+
+---- unresolvable / failing names ----
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=nx.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=nx.test.domain
+    resolves to : (undefined -> NXDOMAIN)
+    attempts=7 success=0 tls_error=4 mtls_rejected=0 http_error=0 timeout=3
+    http_status_codes={}   p50_refusal_ms=1892.77
+    failure mode: tls_error: EOF
+PASS  B3 nx.test.domain REFUSED (success=0, no HTTP status; 4 tls_error/0 mtls_rejected/3 timeout of 7; p50=1892.77ms)
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=servfail.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+
+  name=servfail.test.domain
+    resolves to : (intended SERVFAIL)
+    attempts=6 success=0 tls_error=4 mtls_rejected=0 http_error=0 timeout=2
+    http_status_codes={}   p50_refusal_ms=1891.001
+    failure mode: tls_error: EOF
+PASS  B3 servfail.test.domain REFUSED (success=0, no HTTP status; 4 tls_error/0 mtls_rejected/2 timeout of 6; p50=1891.001ms)
+
+---- ssrf-rebind: policy must follow the RESOLVED address ----
+  dnsdist answer order over 12 queries (comma-separated, first = one HAProxy may pick):
+      127.0.0.1,172.28.0.60
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      172.28.0.60,127.0.0.1
+      127.0.0.1,172.28.0.60
+  orderings observed: permitted-first=5  forbidden-first=7
+PASS  B3.rebind resolver returns BOTH orderings (permitted-first=5, forbidden-first=7)
+[client] phase measure: 20s concurrency=1 target_rps=5 sni=ssrf-rebind.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+[client] attempts=49 success=25 connect_err=0 tls_err=24 mtls=0 http_err=0 timeout=0
+  attempts=100 success(permitted address)=50 tls_error(forbidden address)=49 http_status_codes={'200': 50}
+  (successes are the connections the resolver pointed at 172.28.0.60; refusals are the
+   connections it pointed at 127.0.0.1. Both outcomes from ONE name prove the decision
+   was made on the resolved address.)
+PASS  B3.rebind the forbidden address was refused at least once (tls_error=49)
+PASS  B3.rebind the permitted answer was NOT collateral damage (it still succeeded 50x)
+  note: a success proves the connection reached the IoT Mock (an mTLS handshake
+        against 127.0.0.1 inside the node container cannot produce HTTP 200).
+
+---- rcode evidence (dnstest against the local dnsdist) ----
+  nx.test.domain: rcode="rcode": "NXDOMAIN" answers="answers": []
+  servfail.test.domain: rcode="rcode": "NXDOMAIN" answers="answers": []
+  test.domain: rcode="rcode": "NOERROR" answers="answers": []
+  FINDING (not a security failure): servfail.test.domain returns NXDOMAIN, not the
+  SERVFAIL postgres/init/02-seed.sh documents. It is still refused by the proxy, so the
+  security property holds; the corpus entry simply does not test what it claims to.
+  The real SERVFAIL path (all PowerDNS backends down) is tested in the failover group.
+
+---- HAProxy log evidence (last 15 fe_tls lines on the active node) ----
+    172.28.0.2:50952 [14/Sep/2026:16:31:00.701] fe_tls be_iot/dynamic 1/0/12 3330 CD 1/1/0/0/0 0/0
+    172.28.0.2:50968 [14/Sep/2026:16:31:00.902] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:50980 [14/Sep/2026:16:31:01.101] fe_tls be_iot/dynamic 1/1/11 3330 -- 1/1/0/0/0 0/0
+    172.28.0.2:50988 [14/Sep/2026:16:31:01.300] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:50996 [14/Sep/2026:16:31:01.500] fe_tls be_iot/dynamic 1/0/8 3330 CD 1/1/0/0/0 0/0
+    172.28.0.2:51006 [14/Sep/2026:16:31:01.701] fe_tls fe_tls/<NOSRV> -1/-1/0 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:51008 [14/Sep/2026:16:31:01.902] fe_tls be_iot/dynamic 1/1/11 3330 CD 1/1/0/0/0 0/0
+    172.28.0.2:51020 [14/Sep/2026:16:31:02.100] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:51032 [14/Sep/2026:16:31:02.301] fe_tls be_iot/dynamic 1/0/7 3330 CD 1/1/0/0/0 0/0
+    172.28.0.2:51040 [14/Sep/2026:16:31:02.501] fe_tls fe_tls/<NOSRV> -1/-1/0 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:51054 [14/Sep/2026:16:31:02.701] fe_tls be_iot/dynamic 1/1/10 3330 -- 1/1/0/0/0 0/0
+    172.28.0.2:51068 [14/Sep/2026:16:31:02.901] fe_tls fe_tls/<NOSRV> -1/-1/0 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:51078 [14/Sep/2026:16:31:03.100] fe_tls be_iot/dynamic 1/1/10 3330 -- 1/1/0/0/0 0/0
+    172.28.0.2:51082 [14/Sep/2026:16:31:03.300] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:51088 [14/Sep/2026:16:31:03.500] fe_tls be_iot/dynamic 2/1/12 3330 -- 1/1/0/0/0 0/0
+
+---- b3-target-security: 26 PASS, 0 FAIL, 0 SKIP ----
+
+################################################################################
+# b2-current-functional.txt
+################################################################################
+
+================================================================================
+GROUP b2-current-functional   2026-09-14T16:35:35Z   arch=current
+================================================================================
+VIP=172.28.0.10:3128 (CONNECT)  haproxy owner: haproxy-1
+[client] phase measure: 3s concurrency=2 target_rps=0 persistent=false proxy=172.28.0.10:3128
+B2.1  attempts=3688 success=0 http_200=0 connect_rejected=3686 connect_error=0 tls_error=0
+B2.1  connect_status_codes={'503': 3686}
+FAIL  B2.1 CONNECT iot0000001.test.domain:443 with a valid cert -> end-to-end mTLS request succeeds (200s=0)
+
+B2.diag  direct CONNECT to squid-1:3128 (bypassing HAProxy entirely)
+      HTTP/1.1 503 Service Unavailable
+      Server: squid
+      Mime-Version: 1.0
+      Date: Mon, 14 Sep 2026 16:35:40 GMT
+      Content-Type: text/html;charset=utf-8
+      Content-Length: 3578
+      X-Squid-Error: ERR_DNS_FAIL 0
+      Vary: Accept-Language
+      X-Squid-Error: ERR_DNS_FAIL 0
+PASS  B2.diag the 503 is Squid's OWN error page, indicating DNS failure to resolve the destination
+B2.diag  resolvers with nothing listening on port 53: 3/3
+PASS  B2.diag nothing on the dc-lan answers DNS on port 53 (Squid's only option)
+B2.diag  the SAME query on the POC's configured port 5300 succeeds: '172.28.0.60 '
+PASS  B2.diag PowerDNS answers on port 5300, the port Squid cannot be told to use
+      See /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b2-current-functional/squid-dns-port-evidence.txt for the isolated reproduction.
+
+B2.2  random identities from the 1M namespace
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+B2.2  0/6 random identities served 200 (details: /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b2-current-functional/b2.2-random.txt)
+FAIL  B2.2 every random identity reached the IoT Mock (0 ok, 6 failed)
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+B2.3  client-expired.crt: attempts=4308 success=0 http_200=0 mtls_rejected=0 connect_rejected=4307 connect_error=0
+B2.3  connect_status_codes={'503': 4307}  (a 200 here means the tunnel WAS established)
+B2.3  errors_sample: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B2.3 client-expired.crt: NOT rejected as expected (success=0 http_200=0 mtls_rejected=0 connect_error=0)
+FAIL  B2.3 tunnel WAS established (CONNECT answered 200) and the failure is the inner mTLS handshake
+FAIL  B2.3 raw error names the cause (/expired/): timeout: dial tcp 172.28.0.10:3128: i/o timeout
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+B2.4  client-untrusted.crt: attempts=4248 success=0 http_200=0 mtls_rejected=0 connect_rejected=4247 connect_error=0
+B2.4  connect_status_codes={'503': 4247}  (a 200 here means the tunnel WAS established)
+B2.4  errors_sample: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B2.4 client-untrusted.crt: NOT rejected as expected (success=0 http_200=0 mtls_rejected=0 connect_error=0)
+FAIL  B2.4 tunnel WAS established (CONNECT answered 200) and the failure is the inner mTLS handshake
+FAIL  B2.4 raw error names the cause (/certificate/): timeout: dial tcp 172.28.0.10:3128: i/o timeout
+[client] phase measure: 2s concurrency=1 target_rps=0 persistent=false proxy=172.28.0.10:3128
+B2.5  no client cert: attempts=8723 success=0 mtls_rejected=0 connect_status_codes={'503': 4282}
+B2.5  errors_sample: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B2.5 missing client cert: rejected by the IoT Mock inside the tunnel (mtls_rejected=0, success=0)
+FAIL  B2.5 tunnel WAS established (CONNECT answered 200)
+FAIL  B2.5 raw TLS alert is "certificate required": timeout: dial tcp 172.28.0.10:3128: i/o timeout
+
+---- b2-current-functional: 3 PASS, 11 FAIL, 0 SKIP ----
+
+################################################################################
+# b4-current-security.txt
+################################################################################
+
+================================================================================
+GROUP b4-current-security   2026-09-14T16:39:46Z   arch=current
+================================================================================
+VIP=172.28.0.10:3128 (CONNECT)  haproxy owner: haproxy-1
+corpus size: 22 names
+
+---- SSRF corpus through CONNECT (5s per name) ----
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-benchmark.test.domain
+    resolves to   : A 198.18.0.1
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-benchmark.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-broadcast.test.domain
+    resolves to   : A 255.255.255.255
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-broadcast.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-cgnat.test.domain
+    resolves to   : A 100.64.0.5
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-cgnat.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-linklocal.test.domain
+    resolves to   : A 169.254.1.1
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-linklocal.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-linklocal6.test.domain
+    resolves to   : AAAA fe80::1
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.074   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-linklocal6.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-loopback-alt.test.domain
+    resolves to   : A 127.1.2.3
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.136   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-loopback-alt.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-loopback.test.domain
+    resolves to   : A 127.0.0.1
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.258   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-loopback.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-loopback6.test.domain
+    resolves to   : AAAA ::1
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.132   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-loopback6.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-multicast.test.domain
+    resolves to   : A 224.0.0.1
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-multicast.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-multicast6.test.domain
+    resolves to   : AAAA ff02::1
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-multicast6.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-private10.test.domain
+    resolves to   : A 10.0.0.5
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.048   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-private10.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-private172.test.domain
+    resolves to   : A 172.16.5.5
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.069   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-private172.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-private192.test.domain
+    resolves to   : A 192.168.1.5
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.083   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-private192.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-rebind.test.domain
+    resolves to   : A 127.0.0.1, A 172.28.0.60
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.137   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-rebind.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-reserved.test.domain
+    resolves to   : A 240.0.0.1
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-reserved.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-thisnet.test.domain
+    resolves to   : A 0.1.2.3
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.09   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-thisnet.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-ula6.test.domain
+    resolves to   : AAAA fc00::1
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.385   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-ula6.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-ula6b.test.domain
+    resolves to   : AAAA fd12:3456::1
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-ula6b.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-unspecified.test.domain
+    resolves to   : A 0.0.0.0
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.117   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-unspecified.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-unspecified6.test.domain
+    resolves to   : AAAA ::
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.173   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-unspecified6.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-v4mapped-priv6.test.domain
+    resolves to   : AAAA ::ffff:10.0.0.1
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 ssrf-v4mapped-priv6.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=ssrf-v4mapped6.test.domain
+    resolves to   : AAAA ::ffff:127.0.0.1
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.036   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 ssrf-v4mapped6.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+
+---- unresolvable / failing names ----
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=nx.test.domain
+    resolves to   : (undefined -> NXDOMAIN)
+    attempts=20 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=1
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0.037   failure mode: timeout: dial tcp 172.28.0.10:3128: i/o timeout
+FAIL  B4 nx.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+[client] phase measure: 5s concurrency=2 target_rps=6 persistent=false proxy=172.28.0.10:3128
+
+  name=servfail.test.domain
+    resolves to   : (intended SERVFAIL)
+    attempts=19 success=0 connect_rejected=19 connect_error=0 tls_error=0 http_error=0 timeout=0
+    CONNECT STATUS CODES : {'503': 19}
+    p50_refusal_ms=0   failure mode: (none)
+FAIL  B4 servfail.test.domain NOT evaluated by the policy: Squid answered 503 (ERR_DNS_FAIL), so the request never reached 'acl to_private dst'. codes={'503': 19}
+
+---- ssrf-rebind: policy must follow the RESOLVED address ----
+      127.0.0.1,172.28.0.60,
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      127.0.0.1,172.28.0.60,
+      172.28.0.60,127.0.0.1,
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      172.28.0.60,127.0.0.1,
+      127.0.0.1,172.28.0.60,
+      127.0.0.1,172.28.0.60,
+  orderings observed from PowerDNS: permitted-first=0  forbidden-first=0
+[client] phase measure: 20s concurrency=1 target_rps=4 persistent=false proxy=172.28.0.10:3128
+[client] attempts=25 success=0 rejected=25 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+[client] attempts=65 success=0 rejected=65 connect_err=0 tls_err=0 mtls=0 http_err=0 timeout=0
+  attempts=66 success(permitted address)=0 connect_rejected(forbidden address)=65
+  connect_status_codes={'503': 65}
+  (Both outcomes from ONE name show the decision followed the resolved address,
+   not the attacker-chosen name.)
+FAIL  B4.rebind no 403 observed -- the policy was never reached (codes={'503': 65}, attempts=66)
+FAIL  B4.rebind the permitted answer was NOT collateral damage (it still succeeded 0x)
+
+---- b4-current-security: 0 PASS, 26 FAIL, 0 SKIP ----
+
+################################################################################
+# b5-failover-current.stdout
+################################################################################
+
+================================================================================
+GROUP b5-failover   2026-09-14T16:53:43Z   arch=current
+================================================================================
+arch=current  VIP=172.28.0.10  initial owner: haproxy-1
+notify-hook evidence written to /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/failover-notify-hook-evidence.txt
+  (the [vrrp] lines the design relies on are NOT in docker logs; see that file)
+baseline client traffic (before any fault): no
+  (WARNING: the architecture cannot serve a request even with the whole stack up,
+   so the recovery assertions below will fail for that reason rather than for a
+   failover reason. Recorded explicitly rather than silently.)
+
+------------------------------------------------------------------------
+SCENARIO: PowerDNS 1 (poc-pdns-1) stopped — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:53:47.183Z
+  dnsdist-1 backends before:
+      (metrics unavailable)
+  poc-pdns-1 stopped at 2026-09-14T16:53:54.221Z
+  dnsdist-1 backends during the outage:
+      (metrics unavailable)
+  no dnsdist in CURRENT; the PowerDNS-failover evidence is TARGET-only.
+SKIP  B5.1 dnsdist backend-state evidence (TARGET-only; arch=current)
+SKIP  B5.1 pdns-2 query-count evidence (TARGET-only; arch=current)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=112 samples=112 first_fail=2026-09-14T16:53:53.861Z last_fail=2026-09-14T16:54:18.854Z span_ms=24993
+PASS  B5 b5.1: VIP DID NOT MOVE (still haproxy-1)
+  restored; dnsdist-1 backends:
+      (metrics unavailable)
+
+------------------------------------------------------------------------
+SCENARIO: PowerDNS 2 (poc-pdns-2) stopped — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:54:35.759Z
+  poc-pdns-2 stopped at 2026-09-14T16:54:39.447Z
+  dnsdist-1 backends during the outage:
+      (metrics unavailable)
+  no dnsdist in CURRENT; the PowerDNS-failover evidence is TARGET-only.
+SKIP  B5.2 dnsdist backend-state evidence (TARGET-only; arch=current)
+SKIP  B5.2 pdns-1 query-count evidence (TARGET-only; arch=current)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=110 samples=110 first_fail=2026-09-14T16:54:39.100Z last_fail=2026-09-14T16:55:03.934Z span_ms=24834
+PASS  B5 b5.2: VIP DID NOT MOVE (still haproxy-1)
+  restored; dnsdist-1 backends:
+      (metrics unavailable)
+
+SCENARIO: local dnsdist failure — SKIPPED (CURRENT has no dnsdist layer)
+SKIP  B5.3 local dnsdist failure is TARGET-only (arch=current)
+
+------------------------------------------------------------------------
+SCENARIO: active HAProxy (haproxy-1) killed with SIGKILL — VIP MUST move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:55:21.277Z
+  docker kill poc-haproxy-1 issued at 2026-09-14T16:55:21.288Z
+  VIP owner after       : haproxy-2
+  VIP ownership series  : series=none -> haproxy-2 changes=1 first_change=2026-09-14T16:55:25.441Z
+  VIP moved             : yes (expected: yes; before=haproxy-1 after=haproxy-2)
+  probe window          : failures=197 samples=197 first_fail=2026-09-14T16:55:21.295Z last_fail=2026-09-14T16:56:06.191Z span_ms=44896
+PASS  B5 b5.4: VIP MOVED (haproxy-1 -> haproxy-2)
+  VIP settled on haproxy-2 after 318 ms of polling
+  keepalived transition on haproxy-2: 2026-09-14T16:55:24.448Z MASTER
+  VIP movement (trigger -> new owner MASTER, docker receipt clock): 3171 ms  [2026-09-14T16:55:21.277Z -> 2026-09-14T16:55:24.448Z]
+  probe window detail: failures=197 samples=197 first_fail=2026-09-14T16:55:21.295Z last_fail=2026-09-14T16:56:06.191Z span_ms=44896
+  (baseline traffic at the start of this run was: no)
+FAIL  B5.4 client traffic recovered through haproxy-2 (end-to-end mTLS 200; baseline=no)
+  killed node's restart policy state: exited restarts=0
+  after restore, VIP owner: haproxy-1
+  (both nodes advertise the same virtual_router_id; the node with priority 150 preempts
+   once its own health check passes again -- observed owner above reflects that)
+  (baseline traffic at the start of this run was: no)
+PASS  B5.4 traffic works after restore (owner=haproxy-1; baseline=no)
+
+------------------------------------------------------------------------
+SCENARIO: NXDOMAIN lookup storm — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:56:27.397Z
+  NXDOMAIN attempts: 45 (all refused: success=0)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=133 samples=133 first_fail=2026-09-14T16:56:27.421Z last_fail=2026-09-14T16:56:52.329Z span_ms=24908
+PASS  B5 b5.5-nx: VIP DID NOT MOVE (still haproxy-1)
+  probe window detail: failures=133 samples=133 first_fail=2026-09-14T16:56:27.421Z last_fail=2026-09-14T16:56:52.329Z span_ms=24908
+
+------------------------------------------------------------------------
+SCENARIO: genuine SERVFAIL (all PowerDNS down) — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T16:56:59.147Z
+  both PowerDNS stopped at 2026-09-14T16:56:59.821Z
+  (CURRENT has no dnsdist; Squid resolves directly against the PowerDNS pair)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+PASS  B5 b5.5-servfail: VIP DID NOT MOVE (still haproxy-1)
+  probe window detail: failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+  restored; VIP owner: haproxy-1
+
+---- final state ----
+  VIP owner            : haproxy-1
+  probe recovery       : failures=112 samples=112 first_fail=2026-09-14T16:53:53.861Z last_fail=2026-09-14T16:54:18.854Z span_ms=24993 / failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+  b5.1 probe: failures=112 samples=112 first_fail=2026-09-14T16:53:53.861Z last_fail=2026-09-14T16:54:18.854Z span_ms=24993
+  b5.2 probe: failures=110 samples=110 first_fail=2026-09-14T16:54:39.100Z last_fail=2026-09-14T16:55:03.934Z span_ms=24834
+  b5.4 probe: failures=197 samples=197 first_fail=2026-09-14T16:55:21.295Z last_fail=2026-09-14T16:56:06.191Z span_ms=44896
+  b5.5-nx probe: failures=133 samples=133 first_fail=2026-09-14T16:56:27.421Z last_fail=2026-09-14T16:56:52.329Z span_ms=24908
+  b5.5-servfail probe: failures=136 samples=136 first_fail=2026-09-14T16:56:59.174Z last_fail=2026-09-14T16:57:29.168Z span_ms=29994
+
+---- b5-failover: 6 PASS, 1 FAIL, 5 SKIP ----
+
+################################################################################
+# b5-failover.txt
+################################################################################
+
+================================================================================
+GROUP b5-failover   2026-09-14T17:06:00Z   arch=target
+================================================================================
+arch=target  VIP=172.28.0.10  initial owner: haproxy-1
+notify-hook evidence written to /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/failover-notify-hook-evidence.txt
+  (the [vrrp] lines the design relies on are NOT in docker logs; see that file)
+baseline client traffic (before any fault): yes
+  (failover recovery is therefore directly verifiable in this run)
+
+------------------------------------------------------------------------
+SCENARIO: PowerDNS 1 (poc-pdns-1) stopped — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T17:06:03.363Z
+  dnsdist-1 backends before:
+      dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 1
+      dnsdist_server_queries{server="pdns-1",address="172.28.0.41:5300"} 106
+      dnsdist_server_responses{server="pdns-1",address="172.28.0.41:5300"} 56
+      dnsdist_server_status{server="pdns-2",address="172.28.0.42:5300"} 1
+      dnsdist_server_queries{server="pdns-2",address="172.28.0.42:5300"} 105
+      dnsdist_server_responses{server="pdns-2",address="172.28.0.42:5300"} 56
+  poc-pdns-1 stopped at 2026-09-14T17:06:04.438Z
+  dnsdist-1 backends during the outage:
+      dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 0
+      dnsdist_server_queries{server="pdns-1",address="172.28.0.41:5300"} 106
+      dnsdist_server_responses{server="pdns-1",address="172.28.0.41:5300"} 56
+      dnsdist_server_status{server="pdns-2",address="172.28.0.42:5300"} 1
+      dnsdist_server_queries{server="pdns-2",address="172.28.0.42:5300"} 109
+      dnsdist_server_responses{server="pdns-2",address="172.28.0.42:5300"} 60
+  dnsdist-1 answer while pdns-1 is down: '172.28.0.60' (expected: 172.28.0.60)
+PASS  B5.1 dnsdist still ANSWERS CORRECTLY with pdns-1 down (answer='172.28.0.60', which can only have come from pdns-2)
+  dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 0
+PASS  B5.1 dnsdist marked pdns-1 DOWN (dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 0)
+PASS  B5.1 pdns-2 kept serving queries (105 -> 109)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : no_failures samples=120 ok=120
+PASS  B5 b5.1: VIP DID NOT MOVE (still haproxy-1)
+  restored; dnsdist-1 backends:
+      dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 1
+      dnsdist_server_queries{server="pdns-1",address="172.28.0.41:5300"} 108
+      dnsdist_server_responses{server="pdns-1",address="172.28.0.41:5300"} 58
+      dnsdist_server_status{server="pdns-2",address="172.28.0.42:5300"} 1
+      dnsdist_server_queries{server="pdns-2",address="172.28.0.42:5300"} 123
+      dnsdist_server_responses{server="pdns-2",address="172.28.0.42:5300"} 74
+PASS  B5.1 pdns-1 marked UP again after restore (dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 1)
+
+------------------------------------------------------------------------
+SCENARIO: PowerDNS 2 (poc-pdns-2) stopped — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T17:06:42.819Z
+  poc-pdns-2 stopped at 2026-09-14T17:06:43.507Z
+  dnsdist-1 backends during the outage:
+      dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 1
+      dnsdist_server_queries{server="pdns-1",address="172.28.0.41:5300"} 114
+      dnsdist_server_responses{server="pdns-1",address="172.28.0.41:5300"} 64
+      dnsdist_server_status{server="pdns-2",address="172.28.0.42:5300"} 0
+      dnsdist_server_queries{server="pdns-2",address="172.28.0.42:5300"} 123
+      dnsdist_server_responses{server="pdns-2",address="172.28.0.42:5300"} 74
+  dnsdist-1 answer while pdns-2 is down: '172.28.0.60' (expected: 172.28.0.60)
+PASS  B5.2 dnsdist still ANSWERS CORRECTLY with pdns-2 down (answer='172.28.0.60', via pdns-1)
+  dnsdist_server_status{server="pdns-2",address="172.28.0.42:5300"} 0
+PASS  B5.2 dnsdist marked pdns-2 DOWN (dnsdist_server_status{server="pdns-2",address="172.28.0.42:5300"} 0)
+PASS  B5.2 pdns-1 kept serving queries (108 -> 114)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : no_failures samples=123 ok=123
+PASS  B5 b5.2: VIP DID NOT MOVE (still haproxy-1)
+  restored; dnsdist-1 backends:
+      dnsdist_server_status{server="pdns-1",address="172.28.0.41:5300"} 1
+      dnsdist_server_queries{server="pdns-1",address="172.28.0.41:5300"} 128
+      dnsdist_server_responses{server="pdns-1",address="172.28.0.41:5300"} 78
+      dnsdist_server_status{server="pdns-2",address="172.28.0.42:5300"} 1
+      dnsdist_server_queries{server="pdns-2",address="172.28.0.42:5300"} 124
+      dnsdist_server_responses{server="pdns-2",address="172.28.0.42:5300"} 75
+
+------------------------------------------------------------------------
+SCENARIO: local dnsdist (poc-dnsdist-1, 172.28.0.31) of the ACTIVE node haproxy-1 stopped — VIP MUST move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T17:07:21.752Z
+  active node's health check now: exit=0
+  poc-dnsdist-1 stopped at 2026-09-14T17:07:22.397Z
+  active node health check with its dnsdist down: UNHEALTHY: local dnsdist 172.28.0.31:5300 did not answer
+exit=1
+PASS  B5.3 active node's health check FAILED (UNHEALTHY: local dnsdist 172.28.0.31:5300 did not answer
+exit=1)
+  VIP owner after       : haproxy-2
+  VIP ownership series  : series=haproxy-1 -> haproxy-1 haproxy-2 -> haproxy-2 changes=2 first_change=2026-09-14T17:07:28.930Z
+  VIP moved             : yes (expected: yes; before=haproxy-1 after=haproxy-2)
+  probe window          : failures=3 samples=146 first_fail=2026-09-14T17:07:21.980Z last_fail=2026-09-14T17:07:28.433Z span_ms=6453
+PASS  B5 b5.3: VIP MOVED (haproxy-1 -> haproxy-2)
+  VIP settled on haproxy-2 after 334 ms of polling
+  keepalived transition on haproxy-2: 2026-09-14T17:07:29.191Z MASTER
+  keepalived transition on the old owner: 2026-09-14T17:07:29.191Z BACKUP
+  VIP movement (trigger -> new owner MASTER, docker receipt clock): 7439 ms  [2026-09-14T17:07:21.752Z -> 2026-09-14T17:07:29.191Z]
+  probe window detail: failures=3 samples=146 first_fail=2026-09-14T17:07:21.980Z last_fail=2026-09-14T17:07:28.433Z span_ms=6453
+  probing through the new owner haproxy-2 ...
+  (baseline traffic at the start of this run was: yes)
+PASS  B5.3 client traffic recovered through haproxy-2 (end-to-end mTLS 200; baseline=yes)
+  restored; owner now: haproxy-1
+
+------------------------------------------------------------------------
+SCENARIO: active HAProxy (haproxy-1) killed with SIGKILL — VIP MUST move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T17:08:24.403Z
+  docker kill poc-haproxy-1 issued at 2026-09-14T17:08:24.417Z
+  VIP owner after       : haproxy-2
+  VIP ownership series  : series=none -> haproxy-2 changes=1 first_change=2026-09-14T17:08:27.161Z
+  VIP moved             : yes (expected: yes; before=haproxy-1 after=haproxy-2)
+  probe window          : failures=1 samples=200 first_fail=2026-09-14T17:08:24.424Z last_fail=2026-09-14T17:08:24.424Z span_ms=0
+PASS  B5 b5.4: VIP MOVED (haproxy-1 -> haproxy-2)
+  VIP settled on haproxy-2 after 306 ms of polling
+  keepalived transition on haproxy-2: 2026-09-14T17:08:27.232Z MASTER
+  VIP movement (trigger -> new owner MASTER, docker receipt clock): 2829 ms  [2026-09-14T17:08:24.403Z -> 2026-09-14T17:08:27.232Z]
+  probe window detail: failures=1 samples=200 first_fail=2026-09-14T17:08:24.424Z last_fail=2026-09-14T17:08:24.424Z span_ms=0
+  (baseline traffic at the start of this run was: yes)
+PASS  B5.4 client traffic recovered through haproxy-2 (end-to-end mTLS 200; baseline=yes)
+  killed node's restart policy state: exited restarts=0
+  after restore, VIP owner: haproxy-1
+  (both nodes advertise the same virtual_router_id; the node with priority 150 preempts
+   once its own health check passes again -- observed owner above reflects that)
+  (baseline traffic at the start of this run was: yes)
+PASS  B5.4 traffic works after restore (owner=haproxy-1; baseline=yes)
+
+------------------------------------------------------------------------
+SCENARIO: NXDOMAIN lookup storm — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T17:09:31.330Z
+[client] phase measure: 15s concurrency=1 target_rps=4 sni=nx.test.domain (pinned by -servername) path=/health proxy=172.28.0.10:443
+[client] attempts=4 success=0 connect_err=0 tls_err=4 mtls=0 http_err=0 timeout=0
+  NXDOMAIN attempts: 8 (all refused: success=0)
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : no_failures samples=124 ok=124
+PASS  B5 b5.5-nx: VIP DID NOT MOVE (still haproxy-1)
+  probe window detail: no_failures samples=124 ok=124
+
+------------------------------------------------------------------------
+SCENARIO: genuine SERVFAIL (all PowerDNS down) — VIP must NOT move
+------------------------------------------------------------------------
+  VIP owner before      : haproxy-1
+  trigger recorded at   : 2026-09-14T17:10:03.075Z
+  both PowerDNS stopped at 2026-09-14T17:10:03.860Z
+  dnsdist rcode with every backend down: '<no response at all>'
+  dig output: ;; communications error to 172.28.0.31#5300: timed out ;; no servers could be reached
+  FINDING: dnsdist DROPS the query when no backend is up. It does not return
+  SERVFAIL as keepalived/checks/target.sh documents, so the health check does
+  NOT stay healthy -- it fails on BOTH nodes (verified in the logs below).
+  active node health check with every backend down: UNHEALTHY: local dnsdist 172.28.0.31:5300 did not answer
+exit=1
+  keepalived priority, active node:
+      Mon Sep 14 17:09:21 2026: VRRP_Script(chk_node) succeeded
+      Mon Sep 14 17:09:21 2026: (DC1) Changing effective priority from 90 to 150
+      Mon Sep 14 17:10:06 2026: VRRP_Script(chk_node) failed (exited with status 1)
+      Mon Sep 14 17:10:06 2026: (DC1) Changing effective priority from 150 to 90
+  keepalived priority, peer node:
+      Mon Sep 14 17:05:43 2026: (DC1) Changing effective priority from 40 to 100
+      Mon Sep 14 17:10:06 2026: (DC1) Changing effective priority from 100 to 40
+  NOTE: both nodes degrade (150->90 and 100->40), so the incumbent master keeps
+  the higher effective priority and the VIP stays put by priority arithmetic.
+  The required outcome holds; it is the documented reason that does not.
+  VIP owner after       : haproxy-1
+  VIP ownership series  : series=haproxy-1 changes=0 first_change=none
+  VIP moved             : no (expected: no; before=haproxy-1 after=haproxy-1)
+  probe window          : failures=10 samples=10 first_fail=2026-09-14T17:10:03.106Z last_fail=2026-09-14T17:10:32.104Z span_ms=28998
+PASS  B5 b5.5-servfail: VIP DID NOT MOVE (still haproxy-1)
+  probe window detail: failures=10 samples=10 first_fail=2026-09-14T17:10:03.106Z last_fail=2026-09-14T17:10:32.104Z span_ms=28998
+  restored; VIP owner: haproxy-1
+
+---- final state ----
+  VIP owner            : haproxy-1
+  probe recovery       : no_failures samples=120 ok=120 / failures=10 samples=10 first_fail=2026-09-14T17:10:03.106Z last_fail=2026-09-14T17:10:32.104Z span_ms=28998
+  b5.1 probe: no_failures samples=120 ok=120
+  b5.2 probe: no_failures samples=123 ok=123
+  b5.3 probe: failures=3 samples=146 first_fail=2026-09-14T17:07:21.980Z last_fail=2026-09-14T17:07:28.433Z span_ms=6453
+  b5.4 probe: failures=1 samples=200 first_fail=2026-09-14T17:08:24.424Z last_fail=2026-09-14T17:08:24.424Z span_ms=0
+  b5.5-nx probe: no_failures samples=124 ok=124
+  b5.5-servfail probe: failures=10 samples=10 first_fail=2026-09-14T17:10:03.106Z last_fail=2026-09-14T17:10:32.104Z span_ms=28998
+
+---- b5-failover: 17 PASS, 0 FAIL, 0 SKIP ----
+
+================================================================================
+RAW ARTIFACT INVENTORY
+================================================================================
+  raw/b1-target-functional/b1.1-valid.json
+  raw/b1-target-functional/b1.2-random.json
+  raw/b1-target-functional/b1.3-client-expired.crt.json
+  raw/b1-target-functional/b1.4-client-untrusted.crt.json
+  raw/b1-target-functional/b1.5-nocert.json
+  raw/b1-target-functional/b1.6-curl.txt
+  raw/b2-current-functional/b2.1-valid.json
+  raw/b2-current-functional/b2.2-iot0104496.test.domain.json
+  raw/b2-current-functional/b2.2-iot0129923.test.domain.json
+  raw/b2-current-functional/b2.2-iot0199472.test.domain.json
+  raw/b2-current-functional/b2.2-iot0280949.test.domain.json
+  raw/b2-current-functional/b2.2-iot0438353.test.domain.json
+  raw/b2-current-functional/b2.2-iot0621929.test.domain.json
+  raw/b2-current-functional/b2.2-iot0667617.test.domain.json
+  raw/b2-current-functional/b2.2-iot0695530.test.domain.json
+  raw/b2-current-functional/b2.2-iot0738140.test.domain.json
+  raw/b2-current-functional/b2.2-iot0916171.test.domain.json
+  raw/b2-current-functional/b2.2-iot0937021.test.domain.json
+  raw/b2-current-functional/b2.2-iot0954979.test.domain.json
+  raw/b2-current-functional/b2.2-random.txt
+  raw/b2-current-functional/b2.3-client-expired.crt.json
+  raw/b2-current-functional/b2.4-client-untrusted.crt.json
+  raw/b2-current-functional/b2.5-nocert.json
+  raw/b2-current-functional/squid-dns-port-evidence.txt
+  raw/b2-current-functional/squid-raw-connect.txt
+  raw/b3-target-security/01-ssrf-benchmark.test.domain.json
+  raw/b3-target-security/02-ssrf-broadcast.test.domain.json
+  raw/b3-target-security/03-ssrf-cgnat.test.domain.json
+  raw/b3-target-security/04-ssrf-linklocal.test.domain.json
+  raw/b3-target-security/05-ssrf-linklocal6.test.domain.json
+  raw/b3-target-security/06-ssrf-loopback-alt.test.domain.json
+  raw/b3-target-security/07-ssrf-loopback.test.domain.json
+  raw/b3-target-security/08-ssrf-loopback6.test.domain.json
+  raw/b3-target-security/09-ssrf-multicast.test.domain.json
+  raw/b3-target-security/10-ssrf-multicast6.test.domain.json
+  raw/b3-target-security/11-ssrf-private10.test.domain.json
+  raw/b3-target-security/12-ssrf-private172.test.domain.json
+  raw/b3-target-security/13-ssrf-private192.test.domain.json
+  raw/b3-target-security/14-ssrf-rebind.test.domain.json
+  raw/b3-target-security/15-ssrf-reserved.test.domain.json
+  raw/b3-target-security/16-ssrf-thisnet.test.domain.json
+  raw/b3-target-security/17-ssrf-ula6.test.domain.json
+  raw/b3-target-security/18-ssrf-ula6b.test.domain.json
+  raw/b3-target-security/19-ssrf-unspecified.test.domain.json
+  raw/b3-target-security/20-ssrf-unspecified6.test.domain.json
+  raw/b3-target-security/21-ssrf-v4mapped-priv6.test.domain.json
+  raw/b3-target-security/22-ssrf-v4mapped6.test.domain.json
+  raw/b3-target-security/23-nx.test.domain.json
+  raw/b3-target-security/24-servfail.test.domain.json
+  raw/b3-target-security/99-ssrf-rebind.test.domain.json
+  raw/b3-target-security/corpus.txt
+  raw/b3-target-security/dns-resolution.txt
+  raw/b3-target-security/dnstest-nx.test.domain.json
+  raw/b3-target-security/dnstest-servfail.test.domain.json
+  raw/b3-target-security/dnstest-test.domain.json
+  raw/b3-target-security/haproxy-refusals.log
+  raw/b3-target-security/rebind-dns-answers.txt
+  raw/b4-current-security/01-ssrf-benchmark.test.domain.json
+  raw/b4-current-security/02-ssrf-broadcast.test.domain.json
+  raw/b4-current-security/03-ssrf-cgnat.test.domain.json
+  raw/b4-current-security/04-ssrf-linklocal.test.domain.json
+  raw/b4-current-security/05-ssrf-linklocal6.test.domain.json
+  raw/b4-current-security/06-ssrf-loopback-alt.test.domain.json
+  raw/b4-current-security/07-ssrf-loopback.test.domain.json
+  raw/b4-current-security/08-ssrf-loopback6.test.domain.json
+  raw/b4-current-security/09-ssrf-multicast.test.domain.json
+  raw/b4-current-security/10-ssrf-multicast6.test.domain.json
+  raw/b4-current-security/11-ssrf-private10.test.domain.json
+  raw/b4-current-security/12-ssrf-private172.test.domain.json
+  raw/b4-current-security/13-ssrf-private192.test.domain.json
+  raw/b4-current-security/14-ssrf-rebind.test.domain.json
+  raw/b4-current-security/15-ssrf-reserved.test.domain.json
+  raw/b4-current-security/16-ssrf-thisnet.test.domain.json
+  raw/b4-current-security/17-ssrf-ula6.test.domain.json
+  raw/b4-current-security/18-ssrf-ula6b.test.domain.json
+  raw/b4-current-security/19-ssrf-unspecified.test.domain.json
+  raw/b4-current-security/20-ssrf-unspecified6.test.domain.json
+  raw/b4-current-security/21-ssrf-v4mapped-priv6.test.domain.json
+  raw/b4-current-security/22-ssrf-v4mapped6.test.domain.json
+  raw/b4-current-security/23-nx.test.domain.json
+  raw/b4-current-security/24-servfail.test.domain.json
+  raw/b4-current-security/99-ssrf-rebind.test.domain.json
+  raw/b4-current-security/corpus.txt
+  raw/b4-current-security/rebind-dns-answers.txt
+  raw/b5-failover/b5.1.probe
+  raw/b5-failover/b5.1.vip
+  raw/b5-failover/b5.2.probe
+  raw/b5-failover/b5.2.vip
+  raw/b5-failover/b5.3.probe
+  raw/b5-failover/b5.3.vip
+  raw/b5-failover/b5.4.probe
+  raw/b5-failover/b5.4.vip
+  raw/b5-failover/b5.5-nx.json
+  raw/b5-failover/b5.5-nx.probe
+  raw/b5-failover/b5.5-nx.vip
+  raw/b5-failover/b5.5-servfail.probe
+  raw/b5-failover/b5.5-servfail.vip
+[run-all] arch=target  started 2026-09-14T17:55:30Z
+b1 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1   -> b1.1-valid.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2   -> b1.2-random.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -client-cert=/pki/clients/client-expired.crt -client-key=/pki/clients/client-expired.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.3   -> b1.3-client-expired.crt.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -client-cert=/pki/clients/client-untrusted.crt -client-key=/pki/clients/client-untrusted.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.4   -> b1.4-client-untrusted.crt.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5   -> b1.5-nocert.json
+[b1-target-functional] 2026-09-14T17:55:51Z pass=14 fail=0 skip=0 arch=target
+b3 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-benchmark.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-benchmark.test.domain   -> 01-ssrf-benchmark.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-broadcast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-broadcast.test.domain   -> 02-ssrf-broadcast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-cgnat.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-cgnat.test.domain   -> 03-ssrf-cgnat.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal.test.domain   -> 04-ssrf-linklocal.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal6.test.domain   -> 05-ssrf-linklocal6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback-alt.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback-alt.test.domain   -> 06-ssrf-loopback-alt.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback.test.domain   -> 07-ssrf-loopback.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback6.test.domain   -> 08-ssrf-loopback6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast.test.domain   -> 09-ssrf-multicast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast6.test.domain   -> 10-ssrf-multicast6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private10.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private10.test.domain   -> 11-ssrf-private10.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private172.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private172.test.domain   -> 12-ssrf-private172.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private192.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private192.test.domain   -> 13-ssrf-private192.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-reserved.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-reserved.test.domain   -> 15-ssrf-reserved.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-thisnet.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-thisnet.test.domain   -> 16-ssrf-thisnet.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6.test.domain   -> 17-ssrf-ula6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6b.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6b.test.domain   -> 18-ssrf-ula6b.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified.test.domain   -> 19-ssrf-unspecified.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified6.test.domain   -> 20-ssrf-unspecified6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped-priv6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped-priv6.test.domain   -> 21-ssrf-v4mapped-priv6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped6.test.domain   -> 22-ssrf-v4mapped6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-nx.test.domain   -> 23-nx.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=servfail.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-servfail.test.domain   -> 24-servfail.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-rebind.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=5 -concurrency=1 -timeout=5s -label=b3-rebind   -> 99-ssrf-rebind.test.domain.json
+[b3-target-security] 2026-09-14T17:59:04Z pass=26 fail=0 skip=0 arch=target
+b5 start: arch=target vip_owner=haproxy-1
+b5 baseline_traffic=yes
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=15s -rps=4 -concurrency=1 -timeout=5s -label=b5.5-nx   -> b5.5-nx.json
+[b5-failover] 2026-09-14T18:03:58Z pass=16 fail=1 skip=0 arch=target
+[F1] 2026-09-15T07:00:40Z pass=19 fail=2 skip=0 arch=target
+[F1] 2026-09-15T07:01:42Z pass=24 fail=1 skip=0 arch=target
+[F1] 2026-09-15T07:02:22Z pass=24 fail=1 skip=0 arch=target
+[F1] 2026-09-15T07:03:06Z pass=25 fail=0 skip=0 arch=target
+[F1] 2026-09-15T07:03:40Z pass=25 fail=0 skip=0 arch=target
+[F1] 2026-09-15T07:10:58Z pass=25 fail=0 skip=0 arch=target
+[run-all] arch=current  started 2026-09-15T07:49:39Z
+[run-all] SQUID_CONF=squid.conf  (decides what a b4 PASS means: squid.conf = open proxy ALLOWS; squid.conf.hardened = counterfactual 403s)
+b2 start: arch=current vip_owner=haproxy-1
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0000001.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=3s -concurrency=2 -label=b2.1   -> b2.1-valid.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0701990.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.2-iot0701990.test.domain   -> b2.2-iot0701990.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0729739.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.2-iot0729739.test.domain   -> b2.2-iot0729739.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0855263.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.2-iot0855263.test.domain   -> b2.2-iot0855263.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0987562.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.2-iot0987562.test.domain   -> b2.2-iot0987562.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0453499.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.2-iot0453499.test.domain   -> b2.2-iot0453499.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0256178.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.2-iot0256178.test.domain   -> b2.2-iot0256178.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0000001.test.domain -target-port=443 -client-cert=/pki/clients/client-expired.crt -client-key=/pki/clients/client-expired.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.3   -> b2.3-client-expired.crt.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0000001.test.domain -target-port=443 -client-cert=/pki/clients/client-untrusted.crt -client-key=/pki/clients/client-untrusted.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.4   -> b2.4-client-untrusted.crt.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0000001.test.domain -target-port=443 -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b2.5   -> b2.5-nocert.json
+[b2-current-functional] 2026-09-15T07:50:12Z pass=13 fail=0 skip=0 arch=current
+b4 start: arch=current squid_conf=squid.conf model=faithful vip_owner=haproxy-1
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=iot0000001.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=3s -concurrency=2 -label=b4-baseline   -> 00-baseline-iot0000001.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-benchmark.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-benchmark.test.domain   -> 01-ssrf-benchmark.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-broadcast.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-broadcast.test.domain   -> 02-ssrf-broadcast.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-cgnat.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-cgnat.test.domain   -> 03-ssrf-cgnat.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-linklocal.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-linklocal.test.domain   -> 04-ssrf-linklocal.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-linklocal6.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-linklocal6.test.domain   -> 05-ssrf-linklocal6.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-loopback-alt.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-loopback-alt.test.domain   -> 06-ssrf-loopback-alt.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-loopback.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-loopback.test.domain   -> 07-ssrf-loopback.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-loopback6.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-loopback6.test.domain   -> 08-ssrf-loopback6.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-multicast.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-multicast.test.domain   -> 09-ssrf-multicast.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-multicast6.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-multicast6.test.domain   -> 10-ssrf-multicast6.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-private10.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-private10.test.domain   -> 11-ssrf-private10.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-private172.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-private172.test.domain   -> 12-ssrf-private172.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-private192.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-private192.test.domain   -> 13-ssrf-private192.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-rebind.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-rebind.test.domain   -> 14-ssrf-rebind.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-reserved.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-reserved.test.domain   -> 15-ssrf-reserved.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-thisnet.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-thisnet.test.domain   -> 16-ssrf-thisnet.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-ula6.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-ula6.test.domain   -> 17-ssrf-ula6.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-ula6b.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-ula6b.test.domain   -> 18-ssrf-ula6b.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-unspecified.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-unspecified.test.domain   -> 19-ssrf-unspecified.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-unspecified6.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-unspecified6.test.domain   -> 20-ssrf-unspecified6.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-v4mapped-priv6.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-v4mapped-priv6.test.domain   -> 21-ssrf-v4mapped-priv6.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-v4mapped6.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-ssrf-v4mapped6.test.domain   -> 22-ssrf-v4mapped6.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=nx.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-nx.test.domain   -> 23-nx.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=servfail.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=5s -rps=6 -concurrency=2 -timeout=6s -label=b4-servfail.test.domain   -> 24-servfail.test.domain.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-private172.test.domain -target-port=22 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -rps=4 -concurrency=1 -timeout=5s -label=b4-port-control   -> 98-port-control-ssrf-private172.test.domain-22.json
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=ssrf-rebind.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=4 -concurrency=1 -timeout=6s -label=b4-rebind   -> 99-ssrf-rebind.test.domain.json
+[b4-current-security] 2026-09-15T07:53:05Z pass=28 fail=0 skip=0 arch=current
+b5 start: arch=current vip_owner=haproxy-1
+b5 baseline_traffic=no
+  client: poc-client -mode=connect -proxy=172.28.0.10:38888 -target-host=nx.test.domain -target-port=443 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=15s -rps=4 -concurrency=1 -timeout=6s -label=b5.5-nx   -> b5.5-nx.json
+[b5-failover] 2026-09-15T07:57:06Z pass=6 fail=1 skip=5 arch=current
+[F1] 2026-09-15T22:10:35Z pass=25 fail=0 skip=0 arch=target
+[run-all] arch=target  started 2026-09-15T22:10:36Z
+[run-all] SQUID_CONF=squid.conf  (decides what a b4 PASS means: squid.conf = open proxy ALLOWS; squid.conf.hardened = counterfactual 403s)
+b1 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1   -> b1.1-valid.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2   -> b1.2-random.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5   -> b1.5-nocert.json
+[b1-target-functional] 2026-09-15T22:10:51Z pass=10 fail=0 skip=0 arch=target
+b3 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-benchmark.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-benchmark.test.domain   -> 01-ssrf-benchmark.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-broadcast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-broadcast.test.domain   -> 02-ssrf-broadcast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-cgnat.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-cgnat.test.domain   -> 03-ssrf-cgnat.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal.test.domain   -> 04-ssrf-linklocal.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal6.test.domain   -> 05-ssrf-linklocal6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback-alt.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback-alt.test.domain   -> 06-ssrf-loopback-alt.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback.test.domain   -> 07-ssrf-loopback.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback6.test.domain   -> 08-ssrf-loopback6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast.test.domain   -> 09-ssrf-multicast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast6.test.domain   -> 10-ssrf-multicast6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private10.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private10.test.domain   -> 11-ssrf-private10.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private172.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private172.test.domain   -> 12-ssrf-private172.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private192.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private192.test.domain   -> 13-ssrf-private192.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-reserved.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-reserved.test.domain   -> 15-ssrf-reserved.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-thisnet.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-thisnet.test.domain   -> 16-ssrf-thisnet.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6.test.domain   -> 17-ssrf-ula6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6b.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6b.test.domain   -> 18-ssrf-ula6b.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified.test.domain   -> 19-ssrf-unspecified.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified6.test.domain   -> 20-ssrf-unspecified6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped-priv6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped-priv6.test.domain   -> 21-ssrf-v4mapped-priv6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped6.test.domain   -> 22-ssrf-v4mapped6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-nx.test.domain   -> 23-nx.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=servfail.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-servfail.test.domain   -> 24-servfail.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-rebind.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=5 -concurrency=1 -timeout=5s -label=b3-rebind   -> 99-ssrf-rebind.test.domain.json
+[b3-target-security] 2026-09-15T22:14:04Z pass=26 fail=0 skip=0 arch=target
+b5 start: arch=target vip_owner=haproxy-1
+b5 baseline_traffic=yes
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=15s -rps=4 -concurrency=1 -timeout=5s -label=b5.5-nx   -> b5.5-nx.json
+[b5-failover] 2026-09-15T22:18:53Z pass=17 fail=0 skip=0 arch=target
+[run-all] arch=target  started 2026-09-15T22:19:15Z
+[run-all] SQUID_CONF=squid.conf  (decides what a b4 PASS means: squid.conf = open proxy ALLOWS; squid.conf.hardened = counterfactual 403s)
+b1 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1   -> b1.1-valid.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2   -> b1.2-random.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5   -> b1.5-nocert.json
+[b1-target-functional] 2026-09-15T22:19:30Z pass=10 fail=0 skip=0 arch=target
+b3 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-benchmark.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-benchmark.test.domain   -> 01-ssrf-benchmark.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-broadcast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-broadcast.test.domain   -> 02-ssrf-broadcast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-cgnat.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-cgnat.test.domain   -> 03-ssrf-cgnat.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal.test.domain   -> 04-ssrf-linklocal.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal6.test.domain   -> 05-ssrf-linklocal6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback-alt.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback-alt.test.domain   -> 06-ssrf-loopback-alt.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback.test.domain   -> 07-ssrf-loopback.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback6.test.domain   -> 08-ssrf-loopback6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast.test.domain   -> 09-ssrf-multicast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast6.test.domain   -> 10-ssrf-multicast6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private10.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private10.test.domain   -> 11-ssrf-private10.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private172.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private172.test.domain   -> 12-ssrf-private172.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private192.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private192.test.domain   -> 13-ssrf-private192.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-reserved.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-reserved.test.domain   -> 15-ssrf-reserved.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-thisnet.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-thisnet.test.domain   -> 16-ssrf-thisnet.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6.test.domain   -> 17-ssrf-ula6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6b.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6b.test.domain   -> 18-ssrf-ula6b.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified.test.domain   -> 19-ssrf-unspecified.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified6.test.domain   -> 20-ssrf-unspecified6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped-priv6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped-priv6.test.domain   -> 21-ssrf-v4mapped-priv6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped6.test.domain   -> 22-ssrf-v4mapped6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-nx.test.domain   -> 23-nx.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=servfail.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-servfail.test.domain   -> 24-servfail.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-rebind.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=5 -concurrency=1 -timeout=5s -label=b3-rebind   -> 99-ssrf-rebind.test.domain.json
+[b3-target-security] 2026-09-15T22:22:42Z pass=26 fail=0 skip=0 arch=target
+b5 start: arch=target vip_owner=haproxy-1
+b5 baseline_traffic=yes
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=15s -rps=4 -concurrency=1 -timeout=5s -label=b5.5-nx   -> b5.5-nx.json
+[b5-failover] 2026-09-15T22:27:34Z pass=17 fail=0 skip=0 arch=target
+[run-all] arch=target  started 2026-09-15T23:04:47Z
+[run-all] SQUID_CONF=squid.conf  (decides what a b4 PASS means: squid.conf = open proxy ALLOWS; squid.conf.hardened = counterfactual 403s)
+b1 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1   -> b1.1-valid.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2   -> b1.2-random.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5   -> b1.5-nocert.json
+[b1-target-functional] 2026-09-15T23:05:03Z pass=10 fail=0 skip=0 arch=target
+b3 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-benchmark.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-benchmark.test.domain   -> 01-ssrf-benchmark.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-broadcast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-broadcast.test.domain   -> 02-ssrf-broadcast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-cgnat.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-cgnat.test.domain   -> 03-ssrf-cgnat.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal.test.domain   -> 04-ssrf-linklocal.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal6.test.domain   -> 05-ssrf-linklocal6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback-alt.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback-alt.test.domain   -> 06-ssrf-loopback-alt.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback.test.domain   -> 07-ssrf-loopback.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback6.test.domain   -> 08-ssrf-loopback6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast.test.domain   -> 09-ssrf-multicast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast6.test.domain   -> 10-ssrf-multicast6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private10.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private10.test.domain   -> 11-ssrf-private10.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private172.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private172.test.domain   -> 12-ssrf-private172.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private192.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private192.test.domain   -> 13-ssrf-private192.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-reserved.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-reserved.test.domain   -> 15-ssrf-reserved.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-thisnet.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-thisnet.test.domain   -> 16-ssrf-thisnet.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6.test.domain   -> 17-ssrf-ula6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6b.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6b.test.domain   -> 18-ssrf-ula6b.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified.test.domain   -> 19-ssrf-unspecified.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified6.test.domain   -> 20-ssrf-unspecified6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped-priv6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped-priv6.test.domain   -> 21-ssrf-v4mapped-priv6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped6.test.domain   -> 22-ssrf-v4mapped6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-nx.test.domain   -> 23-nx.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=servfail.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-servfail.test.domain   -> 24-servfail.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-rebind.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=5 -concurrency=1 -timeout=5s -label=b3-rebind   -> 99-ssrf-rebind.test.domain.json
+[b3-target-security] 2026-09-15T23:08:15Z pass=26 fail=0 skip=0 arch=target
+b5 start: arch=target vip_owner=haproxy-1
+b5 baseline_traffic=yes
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=15s -rps=4 -concurrency=1 -timeout=5s -label=b5.5-nx   -> b5.5-nx.json
+[b5-failover] 2026-09-15T23:13:08Z pass=17 fail=0 skip=0 arch=target
+[run-all] arch=target  started 2026-09-15T23:13:11Z
+[run-all] SQUID_CONF=squid.conf  (decides what a b4 PASS means: squid.conf = open proxy ALLOWS; squid.conf.hardened = counterfactual 403s)
+b1 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1   -> b1.1-valid.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2   -> b1.2-random.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5   -> b1.5-nocert.json
+[b1-target-functional] 2026-09-15T23:13:26Z pass=10 fail=0 skip=0 arch=target
+b3 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-benchmark.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-benchmark.test.domain   -> 01-ssrf-benchmark.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-broadcast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-broadcast.test.domain   -> 02-ssrf-broadcast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-cgnat.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-cgnat.test.domain   -> 03-ssrf-cgnat.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal.test.domain   -> 04-ssrf-linklocal.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal6.test.domain   -> 05-ssrf-linklocal6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback-alt.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback-alt.test.domain   -> 06-ssrf-loopback-alt.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback.test.domain   -> 07-ssrf-loopback.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback6.test.domain   -> 08-ssrf-loopback6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast.test.domain   -> 09-ssrf-multicast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast6.test.domain   -> 10-ssrf-multicast6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private10.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private10.test.domain   -> 11-ssrf-private10.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private172.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private172.test.domain   -> 12-ssrf-private172.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private192.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private192.test.domain   -> 13-ssrf-private192.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-reserved.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-reserved.test.domain   -> 15-ssrf-reserved.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-thisnet.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-thisnet.test.domain   -> 16-ssrf-thisnet.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6.test.domain   -> 17-ssrf-ula6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6b.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6b.test.domain   -> 18-ssrf-ula6b.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified.test.domain   -> 19-ssrf-unspecified.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified6.test.domain   -> 20-ssrf-unspecified6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped-priv6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped-priv6.test.domain   -> 21-ssrf-v4mapped-priv6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped6.test.domain   -> 22-ssrf-v4mapped6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-nx.test.domain   -> 23-nx.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=servfail.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-servfail.test.domain   -> 24-servfail.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-rebind.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=5 -concurrency=1 -timeout=5s -label=b3-rebind   -> 99-ssrf-rebind.test.domain.json
+[b3-target-security] 2026-09-15T23:16:38Z pass=26 fail=0 skip=0 arch=target
+b5 start: arch=target vip_owner=haproxy-1
+b5 baseline_traffic=yes
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=15s -rps=4 -concurrency=1 -timeout=5s -label=b5.5-nx   -> b5.5-nx.json
+[b5-failover] 2026-09-15T23:21:31Z pass=17 fail=0 skip=0 arch=target
+[run-all] arch=target  started 2026-09-15T23:21:36Z
+[run-all] SQUID_CONF=squid.conf  (decides what a b4 PASS means: squid.conf = open proxy ALLOWS; squid.conf.hardened = counterfactual 403s)
+b1 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1   -> b1.1-valid.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2   -> b1.2-random.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5   -> b1.5-nocert.json
+[b1-target-functional] 2026-09-15T23:21:51Z pass=10 fail=0 skip=0 arch=target
+b3 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-benchmark.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-benchmark.test.domain   -> 01-ssrf-benchmark.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-broadcast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-broadcast.test.domain   -> 02-ssrf-broadcast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-cgnat.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-cgnat.test.domain   -> 03-ssrf-cgnat.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal.test.domain   -> 04-ssrf-linklocal.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal6.test.domain   -> 05-ssrf-linklocal6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback-alt.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback-alt.test.domain   -> 06-ssrf-loopback-alt.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback.test.domain   -> 07-ssrf-loopback.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback6.test.domain   -> 08-ssrf-loopback6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast.test.domain   -> 09-ssrf-multicast.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast6.test.domain   -> 10-ssrf-multicast6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private10.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private10.test.domain   -> 11-ssrf-private10.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private172.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private172.test.domain   -> 12-ssrf-private172.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private192.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private192.test.domain   -> 13-ssrf-private192.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-reserved.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-reserved.test.domain   -> 15-ssrf-reserved.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-thisnet.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-thisnet.test.domain   -> 16-ssrf-thisnet.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6.test.domain   -> 17-ssrf-ula6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6b.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6b.test.domain   -> 18-ssrf-ula6b.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified.test.domain   -> 19-ssrf-unspecified.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified6.test.domain   -> 20-ssrf-unspecified6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped-priv6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped-priv6.test.domain   -> 21-ssrf-v4mapped-priv6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped6.test.domain   -> 22-ssrf-v4mapped6.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-nx.test.domain   -> 23-nx.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=servfail.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-servfail.test.domain   -> 24-servfail.test.domain.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-rebind.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=5 -concurrency=1 -timeout=5s -label=b3-rebind   -> 99-ssrf-rebind.test.domain.json
+[b3-target-security] 2026-09-15T23:25:03Z pass=26 fail=0 skip=0 arch=target
+b5 start: arch=target vip_owner=haproxy-1
+b5 baseline_traffic=yes
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=15s -rps=4 -concurrency=1 -timeout=5s -label=b5.5-nx   -> b5.5-nx.json
+[b5-failover] 2026-09-15T23:29:55Z pass=17 fail=0 skip=0 arch=target
+b1 start: arch=target vip_owner=haproxy-1
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1   -> b1.1-valid.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2   -> b1.2-random.json
+  client: poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5   -> b1.5-nocert.json
+[b1-target-functional] 2026-09-15T23:30:14Z pass=10 fail=0 skip=0 arch=target

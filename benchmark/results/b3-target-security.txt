@@ -1,0 +1,302 @@
+
+================================================================================
+GROUP b3-target-security   2026-09-15T23:21:51Z   arch=target
+================================================================================
+VIP=172.28.0.10:443  haproxy owner: haproxy-1
+corpus size: 22 names (raw: /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b3-target-security/corpus.txt)
+
+---- DNS: what the local dnsdist returns for each corpus name ----
+    NAME                           DB RECORDS                                     dnsdist-1 A (via the active node)
+    ssrf-benchmark.test.domain     A 198.18.0.1                                   198.18.0.1
+    ssrf-broadcast.test.domain     A 255.255.255.255                              255.255.255.255
+    ssrf-cgnat.test.domain         A 100.64.0.5                                   100.64.0.5
+    ssrf-linklocal.test.domain     A 169.254.1.1                                  169.254.1.1
+    ssrf-linklocal6.test.domain    AAAA fe80::1                                   (no A record)
+    ssrf-loopback-alt.test.domain  A 127.1.2.3                                    127.1.2.3
+    ssrf-loopback.test.domain      A 127.0.0.1                                    127.0.0.1
+    ssrf-loopback6.test.domain     AAAA ::1                                       (no A record)
+    ssrf-multicast.test.domain     A 224.0.0.1                                    224.0.0.1
+    ssrf-multicast6.test.domain    AAAA ff02::1                                   (no A record)
+    ssrf-private10.test.domain     A 10.0.0.5                                     10.0.0.5
+    ssrf-private172.test.domain    A 172.16.5.5                                   172.16.5.5
+    ssrf-private192.test.domain    A 192.168.1.5                                  192.168.1.5
+    ssrf-rebind.test.domain        A 127.0.0.1, A 172.28.0.60                     172.28.0.60,127.0.0.1
+    ssrf-reserved.test.domain      A 240.0.0.1                                    240.0.0.1
+    ssrf-thisnet.test.domain       A 0.1.2.3                                      0.1.2.3
+    ssrf-ula6.test.domain          AAAA fc00::1                                   (no A record)
+    ssrf-ula6b.test.domain         AAAA fd12:3456::1                              (no A record)
+    ssrf-unspecified.test.domain   A 0.0.0.0                                      0.0.0.0
+    ssrf-unspecified6.test.domain  AAAA ::                                        (no A record)
+    ssrf-v4mapped-priv6.test.domain AAAA ::ffff:10.0.0.1                           (no A record)
+    ssrf-v4mapped6.test.domain     AAAA ::ffff:127.0.0.1                          (no A record)
+    nx.test.domain                 (undefined -> NXDOMAIN)                        (no A record)
+    servfail.test.domain           (intended SERVFAIL)                            (no A record)
+
+---- SSRF corpus (6s per name, 8 req/s, timeout 5s) ----
+     (ssrf-rebind is excluded here and handled in its own section below: it has BOTH a
+      permitted and a forbidden answer, so "always refused" is the wrong assertion for it)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-benchmark.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-benchmark.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-benchmark.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-benchmark.test.domain
+    resolves to : A 198.18.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=0.851
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-benchmark.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=0.851ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-broadcast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-broadcast.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-broadcast.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-broadcast.test.domain
+    resolves to : A 255.255.255.255
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.862
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-broadcast.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.862ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-cgnat.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-cgnat.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-cgnat.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-cgnat.test.domain
+    resolves to : A 100.64.0.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.474
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-cgnat.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.474ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-linklocal.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-linklocal.test.domain
+    resolves to : A 169.254.1.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.469
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-linklocal.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.469ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-linklocal6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-linklocal6.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-linklocal6.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-linklocal6.test.domain
+    resolves to : AAAA fe80::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.21
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-linklocal6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.21ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback-alt.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback-alt.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-loopback-alt.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-loopback-alt.test.domain
+    resolves to : A 127.1.2.3
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.561
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback-alt.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.561ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-loopback.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-loopback.test.domain
+    resolves to : A 127.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.562
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.562ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-loopback6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-loopback6.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-loopback6.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-loopback6.test.domain
+    resolves to : AAAA ::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.446
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.446ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-multicast.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-multicast.test.domain
+    resolves to : A 224.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.47
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-multicast.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.47ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-multicast6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-multicast6.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-multicast6.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-multicast6.test.domain
+    resolves to : AAAA ff02::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.526
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-multicast6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.526ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private10.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private10.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-private10.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-private10.test.domain
+    resolves to : A 10.0.0.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.507
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private10.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.507ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private172.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private172.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-private172.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-private172.test.domain
+    resolves to : A 172.16.5.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.5
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private172.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.5ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-private192.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-private192.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-private192.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-private192.test.domain
+    resolves to : A 192.168.1.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.406
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private192.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.406ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-reserved.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-reserved.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-reserved.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-reserved.test.domain
+    resolves to : A 240.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.312
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-reserved.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.312ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-thisnet.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-thisnet.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-thisnet.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-thisnet.test.domain
+    resolves to : A 0.1.2.3
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.15
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-thisnet.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.15ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-ula6.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-ula6.test.domain
+    resolves to : AAAA fc00::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.533
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-ula6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.533ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-ula6b.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-ula6b.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-ula6b.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-ula6b.test.domain
+    resolves to : AAAA fd12:3456::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.138
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-ula6b.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.138ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-unspecified.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-unspecified.test.domain
+    resolves to : A 0.0.0.0
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.294
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-unspecified.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.294ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-unspecified6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-unspecified6.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-unspecified6.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-unspecified6.test.domain
+    resolves to : AAAA ::
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.473
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-unspecified6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.473ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped-priv6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped-priv6.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-v4mapped-priv6.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-v4mapped-priv6.test.domain
+    resolves to : AAAA ::ffff:10.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.314
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-v4mapped-priv6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.314ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-v4mapped6.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-ssrf-v4mapped6.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=ssrf-v4mapped6.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=ssrf-v4mapped6.test.domain
+    resolves to : AAAA ::ffff:127.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.163
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-v4mapped6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.163ms)
+
+---- unresolvable / failing names ----
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=nx.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-nx.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=nx.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=nx.test.domain
+    resolves to : (undefined -> NXDOMAIN)
+    attempts=6 success=0 tls_error=4 mtls_rejected=0 http_error=0 timeout=2
+    http_status_codes={}   p50_refusal_ms=1892.08
+    failure mode: tls_error: EOF
+PASS  B3 nx.test.domain REFUSED (success=0, no HTTP status; 4 tls_error/0 mtls_rejected/2 timeout of 6; p50=1892.08ms)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=servfail.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=6s -rps=8 -concurrency=2 -timeout=5s -label=b3-servfail.test.domain
+[client] phase measure: 6s concurrency=2 target_rps=8 sni=servfail.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+
+  name=servfail.test.domain
+    resolves to : (intended SERVFAIL)
+    attempts=6 success=0 tls_error=4 mtls_rejected=0 http_error=0 timeout=2
+    http_status_codes={}   p50_refusal_ms=1887.951
+    failure mode: tls_error: EOF
+PASS  B3 servfail.test.domain REFUSED (success=0, no HTTP status; 4 tls_error/0 mtls_rejected/2 timeout of 6; p50=1887.951ms)
+
+---- ssrf-rebind: policy must follow the RESOLVED address ----
+  dnsdist answer order over 12 queries (comma-separated, first = one HAProxy may pick):
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+  orderings observed: permitted-first=7  forbidden-first=5
+PASS  B3.rebind resolver returns BOTH orderings (permitted-first=7, forbidden-first=5)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=ssrf-rebind.test.domain -path=/health -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=20s -rps=5 -concurrency=1 -timeout=5s -label=b3-rebind
+[client] phase measure: 20s concurrency=1 target_rps=5 sni=ssrf-rebind.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+[client] attempts=49 success=25 connect_err=0 tls_err=24 mtls=0 http_err=0 timeout=0
+  attempts=100 success(permitted address)=50 tls_error(forbidden address)=49 http_status_codes={'200': 50}
+  (successes are the connections the resolver pointed at 172.28.0.60; refusals are the
+   connections it pointed at 127.0.0.1. Both outcomes from ONE name prove the decision
+   was made on the resolved address.)
+PASS  B3.rebind the forbidden address was refused at least once (tls_error=49)
+PASS  B3.rebind the permitted answer was NOT collateral damage (it still succeeded 50x)
+  note: a success proves the connection reached the IoT Mock (an mTLS handshake
+        against 127.0.0.1 inside the node container cannot produce HTTP 200).
+
+---- rcode evidence (dnstest against the local dnsdist) ----
+  nx.test.domain: rcode="rcode": "NXDOMAIN" answers="answers": []
+  servfail.test.domain: rcode="rcode": "NXDOMAIN" answers="answers": []
+  test.domain: rcode="rcode": "NOERROR" answers="answers": []
+  FINDING (not a security failure): servfail.test.domain returns NXDOMAIN, not the
+  SERVFAIL configs/postgres/init/02-seed.sh documents. It is still refused by the proxy, so the
+  security property holds; the corpus entry simply does not test what it claims to.
+  The real SERVFAIL path (all PowerDNS backends down) is tested in the failover group.
+
+---- HAProxy log evidence (last 15 fe_tls lines on the active node) ----
+    172.28.0.2:40470 [15/Sep/2026:23:24:57.931] fe_tls be_iot/dynamic 2/0/13 3284 -- 1/1/0/0/0 0/0
+    172.28.0.2:40472 [15/Sep/2026:23:24:58.129] fe_tls fe_tls/<NOSRV> -1/-1/0 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:40486 [15/Sep/2026:23:24:58.329] fe_tls be_iot/dynamic 2/0/10 3284 CD 1/1/0/0/0 0/0
+    172.28.0.2:40496 [15/Sep/2026:23:24:58.530] fe_tls fe_tls/<NOSRV> -1/-1/0 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:40508 [15/Sep/2026:23:24:58.729] fe_tls be_iot/dynamic 1/1/10 3284 -- 1/1/0/0/0 0/0
+    172.28.0.2:40512 [15/Sep/2026:23:24:58.929] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:40516 [15/Sep/2026:23:24:59.129] fe_tls be_iot/dynamic 1/1/12 3284 -- 1/1/0/0/0 0/0
+    172.28.0.2:45660 [15/Sep/2026:23:24:59.330] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:45672 [15/Sep/2026:23:24:59.530] fe_tls be_iot/dynamic 2/0/10 3284 -- 1/1/0/0/0 0/0
+    172.28.0.2:45680 [15/Sep/2026:23:24:59.729] fe_tls fe_tls/<NOSRV> -1/-1/0 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:45692 [15/Sep/2026:23:24:59.929] fe_tls be_iot/dynamic 1/1/9 3284 -- 1/1/0/0/0 0/0
+    172.28.0.2:45696 [15/Sep/2026:23:25:00.129] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:45708 [15/Sep/2026:23:25:00.329] fe_tls be_iot/dynamic 2/0/9 3284 -- 1/1/0/0/0 0/0
+    172.28.0.2:45722 [15/Sep/2026:23:25:00.529] fe_tls fe_tls/<NOSRV> -1/-1/1 0 PR 1/1/0/0/0 0/0
+    172.28.0.2:45738 [15/Sep/2026:23:25:00.729] fe_tls be_iot/dynamic 1/1/10 3284 -- 1/1/0/0/0 0/0
+
+---- b3-target-security: 26 PASS, 0 FAIL, 0 SKIP ----

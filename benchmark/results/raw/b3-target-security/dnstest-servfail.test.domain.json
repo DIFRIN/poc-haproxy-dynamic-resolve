@@ -1,0 +1,11 @@
+{
+  "name": "servfail.test.domain",
+  "type": "A",
+  "server": "172.28.0.31:53",
+  "proto": "udp",
+  "rcode": "NXDOMAIN",
+  "answers": [],
+  "latency_ms": 1.179,
+  "truncated": false,
+  "aa": true
+}

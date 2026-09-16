@@ -1,0 +1,117 @@
+{
+  "achieved_qps": 2325.442,
+  "answers_sample": [
+    {
+      "name": "iot0792482.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0620424.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0624169.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0849146.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0950877.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0327387.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0606625.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0363524.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0088171.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0938795.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    }
+  ],
+  "concurrency": 50,
+  "duration_seconds": 60,
+  "errors_sample": [
+    "timeout: write udp 172.28.0.2:43347-\u003e172.28.0.31:53: i/o timeout"
+  ],
+  "fixed_name": "",
+  "host_count": 1000000,
+  "label": "dnsdist-1",
+  "latency_ms": {
+    "p50": 0.555,
+    "p90": 0.65,
+    "p95": 0.683,
+    "p99": 0.83,
+    "max": 2.345,
+    "mean": 0.564
+  },
+  "latency_samples": 139528,
+  "latency_scope": "per query: from just before the UDP send to the matching response (or the 2s timeout)",
+  "measured_seconds": 60.001,
+  "mode": "dns",
+  "network_error": 0,
+  "notes": [
+    "RD=0: queries are sent without recursion desired, as required for authoritative servers.",
+    "For UDP, a response with the TC bit set is counted in 'truncated' and is NOT retried over TCP automatically; its rcode is still counted in 'rcodes'. Truncation is reported as a finding, not papered over.",
+    "latency_ms are exact percentiles (nearest-rank) over the merged, sorted per-worker samples; memory scales with sample count (8 bytes/sample, see latency_samples).",
+    "achieved_qps = queries_sent / measured_seconds (the actual measurement window).",
+    "queries_sent counts queries actually written (or attempted for TCP); timeout and network_error are outcomes, not sent-query failures."
+  ],
+  "proto": "udp",
+  "qtype": "A",
+  "queries_sent": 139528,
+  "rcodes": {
+    "NOERROR": 139527
+  },
+  "responses_received": 139527,
+  "server": "172.28.0.31:53",
+  "start_time": "2026-09-15T08:00:36Z",
+  "target_qps": 5000,
+  "timeout": 1,
+  "truncated": 0,
+  "warmup_seconds": 0,
+  "zone": "test.domain"
+}

@@ -1,0 +1,129 @@
+{
+  "achieved_rps": 7.998,
+  "attempts": 48,
+  "bytes_received": 79728,
+  "bytes_sent": 111372,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 2,
+  "connect_error": 0,
+  "duration_seconds": 6,
+  "errors_sample": [
+    "tls_error: EOF",
+    "timeout: dial tcp 172.28.0.10:443: i/o timeout"
+  ],
+  "handshakes_completed": 24,
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {
+    "200": 24
+  },
+  "identity_checked": 0,
+  "identity_mismatch": 0,
+  "insecure_skip_verify": false,
+  "label": "b3-ssrf-rebind.test.domain",
+  "latency_ms": {
+    "p50": 3.865,
+    "p90": 12.954,
+    "p95": 13.233,
+    "p99": 13.968,
+    "max": 13.968,
+    "mean": 6.605
+  },
+  "latency_samples": 48,
+  "latency_scope": "per request: from just before the TCP connect to the last byte of the HTTP response (TCP+TLS+GET); refused attempts are timed up to the refusal",
+  "measured_seconds": 6.001,
+  "mode": "tls",
+  "mtls_rejected": 0,
+  "notes": [
+    "DIRECT TLS, no CONNECT: this mode exercises the TARGET architecture (SNI passthrough, ADR 0012). The proxy reads the SNI without terminating TLS, resolves it, validates the RESOLVED address, and tunnels raw TLS to the IoT Mock.",
+    "TARGET refuses a bad destination by CLOSING THE TCP CONNECTION -- TCP mode has no HTTP status to send. A destination-policy rejection therefore appears as tls_error with an EOF/reset error string, never as an HTTP status. For the security corpus this is the expected (passing) result.",
+    "mtls_rejected is reserved for a TLS alert sent by the IoT Mock about OUR client certificate (missing, expired, untrusted). It is distinguished from tls_error by the TLS alert number, not by string matching.",
+    "latency_ms covers EVERY attempt including refused ones: for the security corpus the elapsed time to the refusal is itself the measurement.",
+    "identity_checked/identity_mismatch compare the `sni` field in the IoT Mock's GET / response against the name this client actually requested. They are only non-zero when -path is an endpoint that returns that JSON (e.g. -path=/).",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed."
+  ],
+  "outcomes_sample": [
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 13.404,
+      "body": "ok"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 1.569,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 4.007,
+      "body": "ok"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.28,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 10.347,
+      "body": "ok"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 3.35,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 10.686,
+      "body": "ok"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 1.785,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 12.853,
+      "body": "ok"
+    },
+    {
+      "name": "ssrf-rebind.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.62,
+      "error": "EOF"
+    }
+  ],
+  "path": "/health",
+  "proxy": "172.28.0.10:443",
+  "random_host": false,
+  "servername": "ssrf-rebind.test.domain (pinned by -servername)",
+  "start_time": "2026-09-14T16:25:58Z",
+  "success": 24,
+  "target_rps": 8,
+  "timeout": 1,
+  "tls_error": 23,
+  "warmup_seconds": 0,
+  "zone": "test.domain"
+}

@@ -1,0 +1,205 @@
+# ============================================================================
+# TARGET — SNI-based TLS passthrough with dynamic resolution.
+#
+# Rendered per node by haproxy/entrypoint.sh. Substituted variables are listed
+# in that script; nothing else in this file is touched by the renderer.
+#
+# WHAT THIS DOES
+#   The IoT client opens TLS directly to the VIP with
+#   SNI = iotNNNNNNN.test.domain. HAProxy reads the SNI from the ClientHello
+#   WITHOUT terminating TLS, resolves it through its LOCAL dnsdist, validates
+#   the resolved address against the destination policy, sets the destination,
+#   and tunnels the encrypted stream to the IoT Mock.
+#
+#   HAProxy never sees plaintext. mTLS is end-to-end between client and server.
+#
+# WHY NOT CONNECT
+#   TARGET was originally specified as dynamic CONNECT, replacing Squid. That is
+#   not implementable: HAProxy relays CONNECT to an upstream and requires that
+#   upstream to answer 2xx; it never originates the "200 Connection
+#   established". Measured, with evidence, in docs/adr/0011-target-dynamic-connect.md.
+#   SNI passthrough delivers the same intent -- proxy selects a destination by
+#   name, validates it, then gets out of the way -- and removes Squid entirely.
+#
+# ONLY-THE-VIP-OWNER-RECEIVES-TRAFFIC
+#   HAProxy binds *:443 on the node address. The standby node has the port open
+#   but receives no VIP traffic, because it does not own the VIP. This mirrors
+#   production exactly; see docs/adr/0007-only-vip-owner-receives-traffic.md.
+# ============================================================================
+
+global
+    log stdout format raw local0 info
+    maxconn 200000
+    # 20 vCPUs available; leave headroom for the kernel's softirq/network work
+    # rather than starving it with one thread per core.
+    nbthread 8
+    # Drop to the unprivileged user after binding. Same privilege split as a
+    # production HAProxy: root binds, then hands off.
+    user haproxy
+    group haproxy
+    stats socket /var/run/haproxy/admin.sock mode 660 level admin
+    stats timeout 30s
+    # If a reload is ever introduced, bound how long the old process lingers
+    # holding connections -- otherwise failover timings become unmeasurable.
+    hard-stop-after 30s
+    # ClientHello + SNI must fit comfortably; the default 16k is adequate but
+    # 32k removes any chance of a buffer-full failure under TLS record pressure.
+    tune.bufsize 32768
+
+defaults
+    log     global
+    mode    tcp
+    option  tcplog
+    option  dontlognull
+    retries 2
+    timeout connect 5s
+    # 10,000 simultaneous tunnels must survive long idle periods: an IoT device
+    # that polls hourly must not have its tunnel reaped between polls.
+    timeout client  1h
+    timeout server  1h
+    timeout check   2s
+
+# ---------------------------------------------------------------------------
+# The ONLY DNS path out of this node, and it is deliberately narrow:
+# this HAProxy may reach exactly one resolver -- its own local dnsdist.
+#
+# There is no second nameserver entry and no fallback to PowerDNS. If the local
+# dnsdist is unavailable, resolution fails and the request fails. That is the
+# required behaviour (brief §9 and §7): dnsdist is the DNS abstraction layer,
+# and a PowerDNS fallback would silently bypass it.
+# ---------------------------------------------------------------------------
+resolvers local_dns
+    nameserver local ${LOCAL_DNSDIST_IP}:${DNS_PORT}
+    # Retries and hold times are tuned so that a failing PowerDNS is absorbed by
+    # dnsdist (fast, stays healthy) while a failing dnsdist surfaces quickly.
+    resolve_retries 3
+    timeout retry   1s
+    # Positive answers are held for 30s. This is the main lever on DNS query
+    # volume for a 1M-name namespace: without it, every tunnel would re-query.
+    hold valid      30s
+    # Negative and failure answers are held too, so a storm of requests for the
+    # same bad name cannot be amplified into a DNS flood. Measured effect is in
+    # docs/benchmark-report.md.
+    hold nx         30s
+    hold timeout    5s
+    hold refused    5s
+    hold other      5s
+    hold obsolete   10s
+
+# ---------------------------------------------------------------------------
+# Client-facing listener: raw TLS.
+# ---------------------------------------------------------------------------
+frontend fe_tls
+    bind *:${IOT_MOCK_PORT}
+    mode tcp
+    maxconn 200000
+
+    # Wait for the TLS ClientHello before evaluating the rules below. Without
+    # this, rules run against a partial buffer, req.ssl_sni is not yet parsed,
+    # and valid client traffic gets rejected on the first packet.
+    tcp-request inspect-delay 5s
+
+    # --- 1. Extract SNI ----------------------------------------------------
+    # req.ssl_sni parses the ClientHello without terminating TLS. This is the
+    # mechanism that lets the proxy route on a name while staying blind to the
+    # application payload.
+    tcp-request content set-var(txn.sni) req.ssl_sni,lower if { req.ssl_hello_type 1 }
+
+    # --- 2. Reject anything that is not TLS-with-SNI -----------------------
+    # A ClientHello with no SNI cannot be routed and must not be guessed at.
+    tcp-request content reject if { req.ssl_hello_type 1 } !{ var(txn.sni) -m found }
+
+    # --- 3. Resolve the SNI through the LOCAL dnsdist ----------------------
+    # ipv4 only, deliberately. The IoT namespace is A-record only, and pinning
+    # the family removes the ambiguity of "which address did we actually
+    # validate?". IPv6-only names fail to resolve and are rejected -- fail
+    # closed, which is the correct direction. See ADR 0021.
+    tcp-request content do-resolve(txn.dstip,local_dns,ipv4) var(txn.sni) if { var(txn.sni) -m found }
+
+    # --- 3b. Resolution failure is an immediate, explicit reject -----------
+    # Without this, a name that does not resolve falls through to the backend
+    # and the client waits on a connection to the placeholder address until it
+    # times out -- an NXDOMAIN cost the full client timeout (measured: 15s)
+    # instead of failing at once. HAProxy re-evaluates this ruleset after
+    # do-resolve completes, so by the time this rule is reached the var is
+    # either populated or definitively absent.
+    tcp-request content reject if { var(txn.sni) -m found } !{ var(txn.dstip) -m found }
+
+    # --- 4. Destination policy on the RESOLVED ADDRESS ---------------------
+    # Validating the name would be worthless: the name is attacker-chosen and
+    # the address is what the packet will actually reach. Each deny is
+    # independently testable; the corpus of names resolving into these ranges
+    # lives in postgres/init/02-seed.sh.
+    #
+    # NOTE on syntax: HAProxy's ipmask() converter takes a dotted-quad MASK
+    # (ipmask(255.0.0.0)), not a CIDR network -- passing 10.0.0.0/8 to it fails
+    # at config-parse time. The `-m ip` ACL matcher is the correct construct and
+    # accepts CIDR directly.
+    #
+    # The POC's IoT endpoint range is RFC1918 (172.28.0.0/24) because that is
+    # what a real datacenter uses. Each private-range deny therefore carries an
+    # explicit exception for the IoT endpoint, standing in for the production
+    # allow-list of IoT endpoint networks. Production IoT endpoints resolve to
+    # publicly routable addresses and this exception does not exist there.
+    # See ADR 0021.
+    tcp-request content reject if { var(txn.dstip) -m ip 0.0.0.0/8 }        !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 10.0.0.0/8 }       !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 100.64.0.0/10 }    !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 127.0.0.0/8 }      !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 169.254.0.0/16 }   !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 172.16.0.0/12 }    !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 192.0.0.0/24 }     !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 192.0.2.0/24 }     !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 192.168.0.0/16 }   !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 198.18.0.0/15 }    !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 198.51.100.0/24 }  !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 203.0.113.0/24 }   !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 224.0.0.0/4 }      !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 240.0.0.0/4 }      !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+    tcp-request content reject if { var(txn.dstip) -m ip 255.255.255.255/32 } !{ var(txn.dstip) -m ip ${IOT_MOCK_IP}/32 }
+
+    # --- 5. Commit the destination ----------------------------------------
+    # Only reached if the address survived the policy above. If resolution
+    # failed, txn.dstip is unset, these do not fire, and the request falls
+    # through to a backend whose only server is the unroutable placeholder --
+    # it fails to connect and the client sees a reset. Fail closed.
+    tcp-request content set-dst var(txn.dstip) if { var(txn.dstip) -m found }
+    # Fixed destination port. The client cannot influence it: SNI carries no
+    # port, and the IoT fleet speaks 443. This removes the "unauthorized port"
+    # class of attack by construction rather than by validation.
+    tcp-request content set-dst-port int(${IOT_MOCK_PORT}) if { var(txn.dstip) -m found }
+
+    default_backend be_iot
+
+# ---------------------------------------------------------------------------
+# Pure TCP tunnel. No HTTP parsing, no buffering, no inspection.
+#
+# The placeholder server is never used: set-dst above always rewrites the
+# destination for traffic that survives the policy. Its address is 0.0.0.0, the
+# value HAProxy documents for use with do-resolve/set-dst. Traffic that reaches
+# here without a resolved destination fails to connect -- which is the intended
+# outcome, not an accident.
+# ---------------------------------------------------------------------------
+backend be_iot
+    mode tcp
+    server dynamic 0.0.0.0:0
+
+# ---------------------------------------------------------------------------
+# Admin listener: stats + Prometheus metrics.
+#
+# Bound to the NODE address, never *:8404, so it is never reachable through the
+# VIP. Exposing the stats socket on a client-facing address would leak the
+# backend topology and permit administrative actions from the client network.
+# ---------------------------------------------------------------------------
+frontend fe_admin
+    bind ${NODE_IP}:${STATS_PORT}
+    mode http
+    option httplog
+    no log
+    # HAProxy's built-in Prometheus exporter (USE_PROMEX). Exposes connection
+    # counters, per-frontend/backend stats and latency histograms in the format
+    # the benchmark harness scrapes.
+    http-request use-service prometheus-exporter if { path /metrics }
+    stats enable
+    stats uri /stats
+    stats refresh 5s

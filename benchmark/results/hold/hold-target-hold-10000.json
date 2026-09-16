@@ -1,0 +1,63 @@
+{
+  "label": "target-hold-10000",
+  "mode": "tls",
+  "proxy": "172.28.0.10:443",
+  "requested": 10000,
+  "established": 10000,
+  "primed": 10000,
+  "primed_failures": {},
+  "setup_seconds": 21.83,
+  "hold_seconds": 55.0,
+  "failures": {},
+  "survival_samples": [
+    {
+      "t": 25.7,
+      "alive": 10000
+    },
+    {
+      "t": 30.7,
+      "alive": 10000
+    },
+    {
+      "t": 35.7,
+      "alive": 10000
+    },
+    {
+      "t": 40.7,
+      "alive": 10000
+    },
+    {
+      "t": 45.7,
+      "alive": 10000
+    },
+    {
+      "t": 50.8,
+      "alive": 10000
+    },
+    {
+      "t": 55.8,
+      "alive": 10000
+    },
+    {
+      "t": 59.7,
+      "alive": 10000
+    },
+    {
+      "t": 64.7,
+      "alive": 10000
+    },
+    {
+      "t": 69.7,
+      "alive": 10000
+    },
+    {
+      "t": 74.7,
+      "alive": 10000
+    },
+    {
+      "t": 79.7,
+      "alive": 10000
+    }
+  ],
+  "min_alive_during_hold": 10000
+}

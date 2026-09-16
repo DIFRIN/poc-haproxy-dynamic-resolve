@@ -1,0 +1,20 @@
+--- /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/configs/squid/squid-1/squid.conf.hardened	2026-09-15 23:58:51.000000000 +0200
++++ /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/F1/proxy-configs/hard.conf	2026-09-16 00:10:01.842403600 +0200
+@@ -40,7 +40,7 @@
+ request_header_access X-Forwarded-For deny all
+ 
+ # --- access control: THE COUNTERFACTUAL POLICY ------------------------------
+-acl localnet      src 172.28.0.0/24
++acl localnet      src 172.31.0.99/32
+ acl CONNECT       method CONNECT
+ acl SSL_ports     port 443
+ acl manager       proto cache_object
+@@ -68,7 +68,7 @@
+ # requests fall through to `deny all`.
+ 
+ # --- logging ----------------------------------------------------------------
+-access_log none
++access_log stdio:/var/log/squid/access.log
+ cache_log /var/log/squid/cache.log
+ cache_store_log none
+ 

@@ -1,0 +1,24 @@
+
+================================================================================
+GROUP b1-target-functional   2026-09-15T23:21:36Z   arch=target
+================================================================================
+VIP=172.28.0.10:443  haproxy owner: haproxy-1
+B1.1  attempts=1121 success=1119 http_200=1119 tls_error=0 mtls_rejected=0 first_body=ok
+PASS  B1.1 valid SNI + valid client cert -> HTTP 200 (200s=1119, success=1119)
+PASS  B1.1 response body is exactly "ok" (got "ok")
+B1.2  attempts=3066 success=3062 http_200=3062 identity_checked=3062 identity_mismatch=0 method=PUT
+B1.2  sample: iot0556776.test.domain -> sni=iot0556776.test.domain
+B1.2  device response to the PUT: {"bytes":256,"method":"PUT","path":"/","peer":"poc-client","sni":"iot0556776.test.domain","time":"2026-09-15T23:21:40Z"}
+PASS  B1.2 the measured workload request is PUT, not GET (method=PUT)
+PASS  B1.2 the device consumed the full 256-byte PUT body
+PASS  B1.2 random identity answers 200 (200s=3062 of 3062 successes, 3062 identities checked)
+PASS  B1.2 server-observed SNI equals the name requested for every response (mismatches=0)
+PASS  B1.2 identity JSON present on every successful response (checked=3062 >= success=3062)
+B1.5  no client cert: attempts=928 success=0 mtls_rejected=927 tls_error=0
+B1.5  errors_sample: mtls_rejected: remote error: tls: certificate required | timeout: context deadline exceeded
+PASS  B1.5 missing client cert rejected at the TLS layer (mtls_rejected=927, success=0)
+PASS  B1.5 raw TLS alert is "certificate required": mtls_rejected: remote error: tls: certificate required
+B1.6  curl exit=0
+PASS  B1.6 verbatim curl --resolve --cert --key --cacert -> body "ok", http=200
+
+---- b1-target-functional: 10 PASS, 0 FAIL, 0 SKIP ----

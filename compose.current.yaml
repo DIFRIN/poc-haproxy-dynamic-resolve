@@ -1,0 +1,297 @@
+# ============================================================================
+# CURRENT RUN — HAProxy + the shared Squid layer.
+#
+#   docker compose -f compose.current.yaml up -d
+#   ./scripts/up.sh current          # same thing, plus readiness waiting
+#
+# This is the architecture being compared against. It is NOT the default:
+# compose.yaml (TARGET) is what a bare `docker compose up -d` starts.
+#
+# Self-contained and profile-free, exactly like compose.yaml. The PostgreSQL,
+# PowerDNS, IoT Mock and HAProxy blocks are duplicated from compose.yaml --
+# deliberately, so each file can be read and run on its own. If that
+# duplication becomes a maintenance burden, the alternative is a shared
+# compose.core.yaml pulled in via Compose `include:`.
+#
+# ARCH is hardcoded to current here for the same reason it is hardcoded to
+# target there: reading it from .env would let a bare `up` render the wrong
+# architecture's HAProxy config.
+#
+# Squid reads its ACLs from configs/squid/squid-N/${SQUID_CONF}: the default
+# squid.conf is production's REAL policy (an open forward proxy, measured),
+# and squid.conf.hardened is the labelled counterfactual. See ADR 0028.
+# ============================================================================
+
+networks:
+  dc-lan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DC_LAN_SUBNET}
+          gateway: ${DC_LAN_GW}
+
+volumes:
+  # Named volumes, never bind mounts, for database state: the repo lives on
+  # /mnt/c which WSL2 exposes over 9p, and a PostgreSQL data directory behind
+  # 9p would make storage the benchmark bottleneck.
+  postgres-data:
+
+services:
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL — the single source of truth for the DNS namespace.
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: poc-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      IOT_MOCK_IP: ${IOT_MOCK_IP}
+      DNS_RECORD_COUNT: ${DNS_RECORD_COUNT}
+      DNS_ZONE: ${DNS_ZONE}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./configs/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${POSTGRES_IP}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - work_mem=64MB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - max_connections=300
+      - -c
+      - synchronous_commit=off
+      - -c
+      - checkpoint_timeout=30min
+
+  # --------------------------------------------------------------------------
+  # PowerDNS authoritative pair — identical configuration, identical database.
+  # --------------------------------------------------------------------------
+  pdns-1:
+    image: powerdns/pdns-auth-49:latest
+    container_name: poc-pdns-1
+    volumes:
+      - ./configs/powerdns/powerdns-1/pdns.conf:/etc/powerdns/pdns.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${PDNS_1_IP}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    restart: unless-stopped
+
+  pdns-2:
+    image: powerdns/pdns-auth-49:latest
+    container_name: poc-pdns-2
+    volumes:
+      - ./configs/powerdns/powerdns-2/pdns.conf:/etc/powerdns/pdns.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${PDNS_2_IP}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # IoT Mock — the end-to-end mTLS endpoint.
+  # --------------------------------------------------------------------------
+  iot-mock:
+    build: ./images/iot-mock
+    image: poc-iot-mock
+    container_name: poc-iot-mock
+    environment:
+      TLS_CERT: /pki/server/server.crt
+      TLS_KEY: /pki/server/server.key
+      CLIENT_CA: /pki/ca/ca.crt
+      LISTEN_TLS: ":${IOT_MOCK_PORT}"
+      LISTEN_METRICS: ":9090"
+    volumes:
+      - ./pki:/pki:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${IOT_MOCK_IP}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # The common Squid layer.
+  #
+  # NOT paired to the HAProxy nodes: whichever HAProxy owns the VIP uses the
+  # whole Squid layer, and there is no HAProxy-1 -> Squid-1 affinity. This is
+  # also CURRENT's structural weakness -- the Squid pair is a shared fate
+  # domain below a highly-available frontend, so losing both takes the
+  # datacenter down regardless of what Keepalived does.
+  #
+  # Squid listens on 4443, which is NOT the client-facing port (38888).
+  # --------------------------------------------------------------------------
+  squid-1:
+    build: ./images/squid
+    image: poc-squid
+    container_name: poc-squid-1
+    volumes:
+      # SQUID_CONF selects the access-control model:
+      #   squid.conf           production's REAL ACLs (open forward proxy)
+      #   squid.conf.hardened  counterfactual resolved-address policy
+      # Default is the production-faithful file. Any result attributed to
+      # CURRENT must state which one produced it. See ADR 0028.
+      - ./configs/squid/squid-1/${SQUID_CONF:-squid.conf}:/etc/squid/squid.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${SQUID_1_IP}
+    restart: unless-stopped
+
+  squid-2:
+    build: ./images/squid
+    image: poc-squid
+    container_name: poc-squid-2
+    volumes:
+      - ./configs/squid/squid-2/${SQUID_CONF:-squid.conf}:/etc/squid/squid.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${SQUID_2_IP}
+    restart: unless-stopped
+
+  # ==========================================================================
+  # HAProxy node pair — active/passive, one floating VIP.
+  # ==========================================================================
+  haproxy-1:
+    build: ./images/haproxy
+    image: poc-haproxy-node
+    container_name: poc-haproxy-1
+    hostname: haproxy-1
+    environment:
+      NODE_NAME: haproxy-1
+      NODE_IP: ${HAPROXY_1_IP}
+      PEER_IP: ${HAPROXY_2_IP}
+      VIP_ADDRESS: ${VIP_ADDRESS}
+      VIP_PREFIX: ${VIP_PREFIX}
+      ARCH: current
+      # CURRENT uses TWO ports on production's own numbers: CLIENT_PORT is the
+      # client-facing CONNECT listener (38888), SQUID_PORT is where Squid
+      # listens (4443). Modelling these as one variable was a fidelity defect;
+      # see docs/adr/0028-production-config-fidelity.md.
+      CLIENT_PORT: ${CLIENT_PORT}
+      SQUID_PORT: ${SQUID_PORT}
+      STATS_USER: ${STATS_USER}
+      STATS_PASSWORD: ${STATS_PASSWORD}
+      # CURRENT's connection ceilings, at PRODUCTION's values by default.
+      # 2 x CURRENT_SERVER_MAXCONN = 6400 is the hard cap on concurrent
+      # tunnels, below brief §15's mandatory 10,000. The benchmark's resized
+      # variant overrides these.
+      CURRENT_GLOBAL_MAXCONN: ${CURRENT_GLOBAL_MAXCONN}
+      CURRENT_FRONTEND_MAXCONN: ${CURRENT_FRONTEND_MAXCONN}
+      CURRENT_FULLCONN: ${CURRENT_FULLCONN}
+      CURRENT_SERVER_MAXCONN: ${CURRENT_SERVER_MAXCONN}
+      STATS_PORT: "8404"
+      DNS_PORT: ${DNS_PORT}
+      IOT_MOCK_IP: ${IOT_MOCK_IP}
+      IOT_MOCK_PORT: ${IOT_MOCK_PORT}
+      DNS_ZONE: ${DNS_ZONE}
+      SQUID_1_IP: ${SQUID_1_IP}
+      SQUID_2_IP: ${SQUID_2_IP}
+      LOCAL_DNSDIST_IP: ${DNSDIST_1_IP}
+      VRRP_ROUTER_ID: "51"
+      VRRP_PRIORITY: "150"
+      VRRP_STATE: "MASTER"
+      VRRP_ADVERT_INT: "1"
+    volumes:
+      - ./configs/haproxy:/etc/haproxy:ro
+      - ./configs/keepalived/haproxy-1:/etc/keepalived:ro
+      - ./configs/keepalived/checks:/opt/keepalived-checks:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${HAPROXY_1_IP}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BROADCAST
+    sysctls:
+      net.ipv4.ip_nonlocal_bind: "1"
+    ulimits:
+      nofile:
+        soft: 1000000
+        hard: 1000000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 15s
+    restart: unless-stopped
+
+  haproxy-2:
+    build: ./images/haproxy
+    image: poc-haproxy-node
+    container_name: poc-haproxy-2
+    hostname: haproxy-2
+    environment:
+      NODE_NAME: haproxy-2
+      NODE_IP: ${HAPROXY_2_IP}
+      PEER_IP: ${HAPROXY_1_IP}
+      VIP_ADDRESS: ${VIP_ADDRESS}
+      VIP_PREFIX: ${VIP_PREFIX}
+      ARCH: current
+      CLIENT_PORT: ${CLIENT_PORT}
+      SQUID_PORT: ${SQUID_PORT}
+      STATS_USER: ${STATS_USER}
+      STATS_PASSWORD: ${STATS_PASSWORD}
+      CURRENT_GLOBAL_MAXCONN: ${CURRENT_GLOBAL_MAXCONN}
+      CURRENT_FRONTEND_MAXCONN: ${CURRENT_FRONTEND_MAXCONN}
+      CURRENT_FULLCONN: ${CURRENT_FULLCONN}
+      CURRENT_SERVER_MAXCONN: ${CURRENT_SERVER_MAXCONN}
+      STATS_PORT: "8404"
+      DNS_PORT: ${DNS_PORT}
+      IOT_MOCK_IP: ${IOT_MOCK_IP}
+      IOT_MOCK_PORT: ${IOT_MOCK_PORT}
+      DNS_ZONE: ${DNS_ZONE}
+      SQUID_1_IP: ${SQUID_1_IP}
+      SQUID_2_IP: ${SQUID_2_IP}
+      LOCAL_DNSDIST_IP: ${DNSDIST_2_IP}
+      VRRP_ROUTER_ID: "51"
+      VRRP_PRIORITY: "100"
+      VRRP_STATE: "BACKUP"
+      VRRP_ADVERT_INT: "1"
+    volumes:
+      - ./configs/haproxy:/etc/haproxy:ro
+      - ./configs/keepalived/haproxy-2:/etc/keepalived:ro
+      - ./configs/keepalived/checks:/opt/keepalived-checks:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${HAPROXY_2_IP}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BROADCAST
+    sysctls:
+      net.ipv4.ip_nonlocal_bind: "1"
+    ulimits:
+      nofile:
+        soft: 1000000
+        hard: 1000000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 15s
+    restart: unless-stopped

@@ -1,0 +1,32 @@
+
+================================================================================
+GROUP b1-target-functional   2026-09-15T23:29:59Z   arch=target
+================================================================================
+VIP=172.28.0.10:443  haproxy owner: haproxy-1
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -method=GET -body-bytes=0 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=2s -concurrency=2 -label=b1.1
+[client] phase measure: 2s concurrency=2 target_rps=0 sni=iot0000001.test.domain (pinned by -servername) request=GET /health body=0B proxy=172.28.0.10:443
+B1.1  attempts=1142 success=1123 http_200=1123 tls_error=0 mtls_rejected=0 first_body=ok
+PASS  B1.1 valid SNI + valid client cert -> HTTP 200 (200s=1123, success=1123)
+PASS  B1.1 response body is exactly "ok" (got "ok")
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -path=/ -method=PUT -body-bytes=256 -random-host -host-count=1000000 -client-cert=/pki/clients/client-valid.crt -client-key=/pki/clients/client-valid.key -ca=/pki/ca/ca.crt -duration=4s -concurrency=4 -label=b1.2
+[client] phase measure: 4s concurrency=4 target_rps=0 sni=<one random iotNNNNNNN name per request> request=PUT / body=256B proxy=172.28.0.10:443
+B1.2  attempts=3102 success=3079 http_200=3079 identity_checked=3079 identity_mismatch=0 method=PUT
+B1.2  sample: iot0960764.test.domain -> sni=iot0960764.test.domain
+B1.2  device response to the PUT: {"bytes":256,"method":"PUT","path":"/","peer":"poc-client","sni":"iot0960764.test.domain","time":"2026-09-15T23:30:03Z"}
+PASS  B1.2 the measured workload request is PUT, not GET (method=PUT)
+PASS  B1.2 the device consumed the full 256-byte PUT body
+PASS  B1.2 random identity answers 200 (200s=3079 of 3079 successes, 3079 identities checked)
+PASS  B1.2 server-observed SNI equals the name requested for every response (mismatches=0)
+PASS  B1.2 identity JSON present on every successful response (checked=3079 >= success=3079)
+  $ docker run --rm --network poc-proxy_dc-lan -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/pki:/pki:ro -v /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results:/results poc-client -mode=tls -proxy=172.28.0.10:443 -servername=iot0000001.test.domain -path=/health -ca=/pki/ca/ca.crt -duration=2s -concurrency=1 -label=b1.5
+[client] phase measure: 2s concurrency=1 target_rps=0 sni=iot0000001.test.domain (pinned by -servername) request=PUT /health body=256B proxy=172.28.0.10:443
+B1.5  no client cert: attempts=917 success=0 mtls_rejected=916 tls_error=0
+B1.5  errors_sample: mtls_rejected: remote error: tls: certificate required | timeout: read tcp 172.28.0.2:46718->172.28.0.10:443: i/o timeout
+PASS  B1.5 missing client cert rejected at the TLS layer (mtls_rejected=916, success=0)
+PASS  B1.5 raw TLS alert is "certificate required": mtls_rejected: remote error: tls: certificate required
+ok
+http=200
+B1.6  curl exit=0
+PASS  B1.6 verbatim curl --resolve --cert --key --cacert -> body "ok", http=200
+
+---- b1-target-functional: 10 PASS, 0 FAIL, 0 SKIP ----

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>target-mtls-put-6000rps</title><style>
+:root{--bg:#fbfbfa;--fg:#1b1b19;--muted:#6b6b66;--line:#dcdcd6;--card:#fff;
+--ok:#1a7f37;--warn:#9a6700;--bad:#b42318;--accent:#0b5fff}
+@media (prefers-color-scheme:dark){:root{--bg:#16161a;--fg:#ececec;--muted:#a0a0a8;
+--line:#2e2e35;--card:#1e1e23;--ok:#4ac26b;--warn:#d4a72c;--bad:#ff7b72;--accent:#6ea8ff}}
+*{box-sizing:border-box}
+body{margin:0;padding:32px 24px 64px;background:var(--bg);color:var(--fg);
+font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:900px;margin:0 auto}
+h1{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+margin:34px 0 10px;font-weight:600}
+.sub{color:var(--muted);margin:0 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:0 0 16px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+.kpis{display:flex;flex-wrap:wrap;gap:14px}
+.kpi{flex:1 1 150px;background:var(--card);border:1px solid var(--line);
+border-radius:10px;padding:14px 16px}
+.kpi .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+ul{margin:6px 0 0;padding-left:20px}li{margin:3px 0}
+footer{margin-top:40px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
+</style></head>
+<body><main>
+<h1>target-mtls-put-6000rps</h1>
+<p class="sub">benchmark result &middot; rendered 2026-09-15 22:07 UTC</p>
+<div class="kpis"><div class="kpi"><div class="v ">1,289 rps</div><div class="k">throughput</div></div><div class="kpi"><div class="v warn">77,277</div><div class="k">successful</div></div><div class="kpi"><div class="v ">34.60 ms</div><div class="k">p50 latency</div></div><div class="kpi"><div class="v ">99.34 ms</div><div class="k">p99 latency</div></div></div><h2>Latency (ms)</h2><table><thead><tr><th>percentile</th><th>ms</th></tr></thead><tbody><tr><td>p50</td><td class="num">34.6</td></tr><tr><td>p90</td><td class="num">64.58</td></tr><tr><td>p95</td><td class="num">75.5</td></tr><tr><td>p99</td><td class="num">99.34</td></tr><tr><td>max</td><td class="num">210.8</td></tr><tr><td>mean</td><td class="num">38.24</td></tr></tbody></table><h2>Outcome counters</h2><table><thead><tr><th>counter</th><th>count</th></tr></thead><tbody><tr><td>connect error</td><td class="num">0</td></tr><tr><td>tls error</td><td class="num">0</td></tr><tr><td>http error</td><td class="num">0</td></tr><tr><td>timeout</td><td class="num">50</td></tr><tr><td>mtls rejected</td><td class="num">0</td></tr></tbody></table><h2>Status codes</h2><table><thead><tr><th>code</th><th>responses</th></tr></thead><tbody><tr><td>200</td><td class="num">77,277</td></tr></tbody></table><h2>Method notes</h2><ul><li>DIRECT TLS, no CONNECT: this mode exercises the TARGET architecture (SNI passthrough, ADR 0012). The proxy reads the SNI without terminating TLS, resolves it, validates the RESOLVED address, and tunnels raw TLS to the IoT Mock.</li><li>TARGET refuses a bad destination by CLOSING THE TCP CONNECTION -- TCP mode has no HTTP status to send. A destination-policy rejection therefore appears as tls_error with an EOF/reset error string, never as an HTTP status. For the security corpus this is the expected (passing) result.</li><li>mtls_rejected is reserved for a TLS alert sent by the IoT Mock about OUR client certificate (missing, expired, untrusted). It is distinguished from tls_error by the TLS alert number, not by string matching.</li><li>latency_ms covers EVERY attempt including refused ones: for the security corpus the elapsed time to the refusal is itself the measurement.</li><li>identity_checked/identity_mismatch compare the `sni` field in the IoT Mock&#x27;s response against the name this client actually requested. The device-facing PUT response carries that field on every successful request, so the identity check is active for the measured workload itself, not only for GET /.</li><li>achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).</li><li>Request-level failures never change the exit code; exit 0 means the run completed.</li><li>the measured workload request is PUT / with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload.</li></ul><h2>Error sample</h2><div class="card mono"><ul><li>timeout: read tcp 172.28.0.2:44668-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: dial tcp 172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44166-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44790-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44740-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44404-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44306-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44504-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44724-&gt;172.28.0.10:443: i/o timeout</li><li>timeout: read tcp 172.28.0.2:44550-&gt;172.28.0.10:443: i/o timeout</li></ul></div>
+<h2>Run parameters</h2>
+<table><thead><tr><th>parameter</th><th>value</th></tr></thead><tbody><tr><td>mode</td><td>tls</td></tr><tr><td>proxy</td><td>172.28.0.10:443</td></tr><tr><td>servername</td><td>iot0000001.test.domain (pinned by -servername)</td></tr><tr><td>start time</td><td>2026-09-15T07:58:22Z</td></tr><tr><td>duration seconds</td><td class="num">60</td></tr><tr><td>concurrency</td><td class="num">50</td></tr><tr><td>target rps</td><td class="num">6,000</td></tr><tr><td>label</td><td>target-mtls-put-6000rps</td></tr></tbody></table>
+
+<footer>Generated by <span class="mono">scripts/report.py</span> from
+<span class="mono">benchmark/results/target-mtls-put-6000rps.json</span>. Rendered from the raw result file; no value
+on this page is recomputed or estimated.</footer>
+</main></body></html>

@@ -1,0 +1,62 @@
+{
+  "achieved_rps": 1440.673,
+  "attempts": 4328,
+  "body_bytes": 256,
+  "bytes_received": 3762120,
+  "bytes_sent": 2419008,
+  "client_cert": "",
+  "concurrency": 1,
+  "connect_error": 0,
+  "connect_rejected": 0,
+  "connect_status_codes": {
+    "200": 1172
+  },
+  "duration_seconds": 3,
+  "errors_sample": [
+    "mtls_rejected: remote error: tls: certificate required",
+    "timeout: dial tcp 172.28.0.10:3128: i/o timeout"
+  ],
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {},
+  "insecure_skip_verify": false,
+  "label": "E2-current-nocert",
+  "latency_ms": {
+    "p50": 0.001,
+    "p90": 2.514,
+    "p95": 2.572,
+    "p99": 2.786,
+    "max": 4.142,
+    "mean": 0.681
+  },
+  "latency_samples": 4328,
+  "latency_scope": "short_lived: per-request latency measured from just before the CONNECT write to the last byte of the HTTP response (TCP+CONNECT+TLS+PUT)",
+  "measured_seconds": 3.004,
+  "method": "PUT",
+  "mode": "connect",
+  "mtls_rejected": 1172,
+  "notes": [
+    "connect_rejected means the proxy refused the CONNECT; the refusal status code is counted in connect_status_codes. It is an expected outcome for the security tests, not an error.",
+    "latency_ms are exact percentiles (nearest-rank) over the merged, sorted per-worker samples; memory scales with sample count (8 bytes/sample, see latency_samples).",
+    "bytes_sent/bytes_received are raw TCP bytes, so they include CONNECT framing and TLS record overhead.",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed.",
+    "the measured workload request is PUT / with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload.",
+    "no client certificate was presented (-client-cert empty); a server requiring mTLS should answer mtls_rejected."
+  ],
+  "path": "/",
+  "persistent": false,
+  "proxy": "172.28.0.10:3128",
+  "random_host": false,
+  "requests_per_tunnel": 100,
+  "servername": "iot0000001.test.domain",
+  "start_time": "2026-09-14T17:49:35Z",
+  "success": 0,
+  "target_host": "iot0000001.test.domain",
+  "target_port": 443,
+  "target_rps": 0,
+  "timeout": 3156,
+  "tls_error": 0,
+  "tunnels_opened": 1172,
+  "warmup_seconds": 0
+}

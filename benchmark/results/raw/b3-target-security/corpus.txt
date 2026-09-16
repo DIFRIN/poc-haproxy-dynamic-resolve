@@ -1,0 +1,22 @@
+ssrf-benchmark.test.domain|A 198.18.0.1
+ssrf-broadcast.test.domain|A 255.255.255.255
+ssrf-cgnat.test.domain|A 100.64.0.5
+ssrf-linklocal.test.domain|A 169.254.1.1
+ssrf-linklocal6.test.domain|AAAA fe80::1
+ssrf-loopback-alt.test.domain|A 127.1.2.3
+ssrf-loopback.test.domain|A 127.0.0.1
+ssrf-loopback6.test.domain|AAAA ::1
+ssrf-multicast.test.domain|A 224.0.0.1
+ssrf-multicast6.test.domain|AAAA ff02::1
+ssrf-private10.test.domain|A 10.0.0.5
+ssrf-private172.test.domain|A 172.16.5.5
+ssrf-private192.test.domain|A 192.168.1.5
+ssrf-rebind.test.domain|A 127.0.0.1, A 172.28.0.60
+ssrf-reserved.test.domain|A 240.0.0.1
+ssrf-thisnet.test.domain|A 0.1.2.3
+ssrf-ula6.test.domain|AAAA fc00::1
+ssrf-ula6b.test.domain|AAAA fd12:3456::1
+ssrf-unspecified.test.domain|A 0.0.0.0
+ssrf-unspecified6.test.domain|AAAA ::
+ssrf-v4mapped-priv6.test.domain|AAAA ::ffff:10.0.0.1
+ssrf-v4mapped6.test.domain|AAAA ::ffff:127.0.0.1

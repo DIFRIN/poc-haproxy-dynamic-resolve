@@ -1,0 +1,76 @@
+# ============================================================================
+# squid-1 — COUNTERFACTUAL. THIS IS NOT PRODUCTION.
+#
+# A hypothetical hardening of the CURRENT Squid layer: the resolved-address
+# destination policy that earlier revisions of this POC MISTAKENLY ATTRIBUTED TO
+# PRODUCTION, and then benchmarked as if it were CURRENT's real posture.
+#
+# It is kept because "how would CURRENT compare if it were hardened?" is a fair
+# question, and because it is the only implementation of resolved-address
+# validation for CONNECT in this repository. It demonstrates that such a control
+# IS implementable in Squid, so it is not true that only TARGET can do it --
+# but production does not do it today, and would have to maintain it as bespoke
+# configuration. See docs/adr/0028.
+#
+# Select with SQUID_CONF=squid.conf.hardened in .env. The default is the
+# production-faithful `squid.conf`. Results from this file may never be
+# presented as CURRENT's production behaviour.
+# ============================================================================
+
+# --- listener ---------------------------------------------------------------
+http_port 4443
+
+# --- identity ---------------------------------------------------------------
+visible_hostname squid-1
+httpd_suppress_version_string on
+
+# --- DNS --------------------------------------------------------------------
+dns_nameservers 172.28.0.41 172.28.0.42
+dns_retransmit_interval 1 seconds
+dns_timeout 2 seconds
+
+# --- caching: off -----------------------------------------------------------
+cache deny all
+cache_mem 0 MB
+cache_dir null /tmp
+
+# --- privacy / hygiene ------------------------------------------------------
+via off
+forwarded_for delete
+request_header_access X-Forwarded-For deny all
+
+# --- access control: THE COUNTERFACTUAL POLICY ------------------------------
+acl localnet      src 172.28.0.0/24
+acl CONNECT       method CONNECT
+acl SSL_ports     port 443
+acl manager       proto cache_object
+
+# Destination policy on the RESOLVED address. Squid resolves the CONNECT
+# destination and matches `dst` against the result, so the policy is evaluated
+# on what the packet will actually reach -- not on the attacker-supplied name.
+#
+# The IoT endpoint range is RFC1918, so each private range carries an explicit
+# exception for it, standing in for production's allow-list of IoT endpoint
+# networks. Same construction as the TARGET policy.
+acl to_private dst 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4
+acl iot_endpoints dst 172.28.0.60/32
+
+# Order matters: the IoT endpoint exception must be evaluated before the
+# private-range denial it overrides.
+http_access allow localnet CONNECT SSL_ports iot_endpoints
+http_access allow localnet CONNECT SSL_ports !to_private
+http_access deny  localnet CONNECT !SSL_ports
+http_access allow localhost manager
+http_access deny  manager
+http_access deny  all
+
+# CONNECT only -- no allow exists for plain HTTP methods, so non-CONNECT
+# requests fall through to `deny all`.
+
+# --- logging ----------------------------------------------------------------
+access_log none
+cache_log /var/log/squid/cache.log
+cache_store_log none
+
+# --- worker model -----------------------------------------------------------
+workers 4

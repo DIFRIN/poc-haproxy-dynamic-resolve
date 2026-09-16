@@ -1,0 +1,35 @@
+# metrics snapshot: target-tunnels-10000-after
+# 2026-09-14T17:25:19Z
+
+## host
+vCPUs: 20
+                 total        used        free      shared  buff/cache   available
+  Mem:           31930        2300       25716         151        4434       29629
+  Swap:           8192           0        8192
+
+## container resource usage (docker stats --no-stream)
+  NAME            CPU %     MEM USAGE / LIMIT     NET I/O
+  poc-dnsdist-2   0.16%     58.88MiB / 31.18GiB   1.31MB / 26.7kB
+  poc-dnsdist-1   0.16%     58.39MiB / 31.18GiB   1.31MB / 28.5kB
+  poc-haproxy-1   794.47%   246.6MiB / 31.18GiB   1.19GB / 1.13GB
+  poc-pdns-2      0.17%     46.47MiB / 31.18GiB   1.42MB / 91.3kB
+  poc-haproxy-2   1.64%     37.03MiB / 31.18GiB   1.28MB / 7.67kB
+  poc-pdns-1      0.18%     46.48MiB / 31.18GiB   1.43MB / 91.7kB
+  poc-postgres    0.31%     169.8MiB / 31.18GiB   1.39MB / 275kB
+  poc-iot-mock    84.97%    29.68MiB / 31.18GiB   549MB / 593MB
+
+## VIP ownership
+  haproxy-1: OWNS VIP (ACTIVE)
+  haproxy-2: standby
+
+## HAProxy stats (active node)
+  # pxname,svname,qcur,qmax,scur,smax,slim,stot,bin,bout,dreq,dresp,ereq,econ,eresp,wretr,wredis,status,weight,act,bck,chkfail,chkdown,lastchg,downtime,qlimit,pid,iid,sid,throttle,lbtot,tracked,type,rate,rate_lim,rate_max,check_status,check_code,check_duration,hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,req_rate,req_rate_max,req_tot,cli_abrt,srv_abrt,comp_in,comp_out,comp_byp,comp_rsp,lastsess,last_chk,last_agt,qtime,ctime,rtime,ttime,agent_status,agent_code,agent_duration,check_desc,agent_desc,check_rise,check_fall,check_health,agent_rise,agent_fall,agent_health,addr,cookie,mode,algo,conn_rate,conn_rate_max,conn_tot,intercepted,dcon,dses,wrew,connect,reuse,cache_lookups,cache_hits,srv_icur,src_ilim,qtime_max,ctime_max,rtime_max,ttime_max,eint,idle_conn_cur,safe_conn_cur,used_conn_cur,need_conn_est,uweight,agg_server_status,agg_server_check_status,agg_check_status,srid,sess_other,h1sess,h2sess,h3sess,req_other,h1req,h2req,h3req,proto,-,ssl_sess,ssl_reused_sess,ssl_failed_handshake,h2_headers_rcvd,h2_data_rcvd,h2_settings_rcvd,h2_rst_stream_rcvd,h2_goaway_rcvd,h2_detected_conn_protocol_errors,h2_detected_strm_protocol_errors,h2_rst_stream_resp,h2_goaway_resp,h2_open_connections,h2_backend_open_streams,h2_total_connections,h2_backend_total_streams,h1_open_connections,h1_open_streams,h1_total_connections,h1_total_streams,h1_bytes_in,h1_bytes_out,h1_spliced_bytes_in,h1_spliced_bytes_out,
+  fe_tls,FRONTEND,,,16650,28447,200000,215222,473963324,512977509,0,0,0,,,,,OPEN,,,,,,,,,1,2,0,,,,0,16318,0,16526,,,,,,,,,,,0,0,0,,,0,0,0,0,,,,,,,,,,,,,,,,,,,,,tcp,,16312,16499,215253,,0,0,0,,,,,,,,,,,0,,,,,,,,,,215222,0,0,0,0,0,0,0,,-,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  be_iot,dynamic,0,0,16390,28435,,207343,473963324,512977509,,0,,14834,0,39611,0,no check,1,1,0,,,125,,,1,3,1,,214999,,2,13220,,14905,,,,,,,,,,,,,,6814,0,,,,,0,,,16,97,0,220,,,,,,,,,,,,0.0.0.0:0,,tcp,,,,,,,,0,254610,0,,,0,,2708,13599,0,17284,0,0,0,0,4,1,,,,0,,,,,,,,,,-,0,0,0,,,,,,,,,,,,,,,,,,,,,,
+  be_iot,BACKEND,0,0,16396,28439,20000,214999,473963324,512977509,0,0,,14834,0,39611,0,UP,1,1,0,,0,125,0,,1,3,0,,214999,,1,16597,,16521,,,,,,,,,,,,,,6814,0,0,0,0,0,0,,,16,97,0,220,,,,,,,,,,,,,,tcp,roundrobin,,,,,,,0,254610,0,,,,,2708,13599,0,17284,0,,,,,1,0,0,0,,,,,,,,,,,-,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+
+## dnsdist backends (TARGET)
+  dnsdist-1: Marking downstream pdns-1 (172.28.0.41:53) as 'up'
+  dnsdist-1: Marking downstream pdns-2 (172.28.0.42:53) as 'up'
+  dnsdist-2: Marking downstream pdns-2 (172.28.0.42:53) as 'up'
+  dnsdist-2: Marking downstream pdns-1 (172.28.0.41:53) as 'up'

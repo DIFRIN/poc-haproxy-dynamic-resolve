@@ -1,0 +1,345 @@
+# ============================================================================
+# NOMINAL TARGET RUN — HAProxy + dnsdist + PowerDNS, Squid removed.
+#
+#   cp .env.example .env
+#   ./scripts/gen-certs.sh
+#   docker compose up -d
+#
+# This file is self-contained: a bare `docker compose up -d` brings up the
+# recommended architecture with no profiles and no .env switching. The CURRENT
+# comparison stack lives in compose.current.yaml and is run with an explicit
+# -f.
+#
+# Everything shares ONE bridge network ("dc-lan") modelling the single L2
+# segment of a production datacenter. This is load-bearing, not cosmetic: the
+# floating VIP is owned via VRRP and clients must reach it by ARP, exactly as
+# in production. Two nodes on different L2 segments could not share a VIP.
+#
+# ARCH is hardcoded to target here ON PURPOSE. Reading it from .env would mean
+# a bare `docker compose up -d` could silently render the wrong architecture's
+# HAProxy config.
+#
+# The PostgreSQL / PowerDNS / IoT Mock services are IDENTICAL in both
+# architectures by design, so the DNS comparison and the mTLS tests are
+# like-for-like. That does mean these blocks are duplicated in
+# compose.current.yaml; the duplication is deliberate (each file is readable
+# and runnable on its own) and is noted there too.
+# ============================================================================
+
+networks:
+  dc-lan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DC_LAN_SUBNET}
+          gateway: ${DC_LAN_GW}
+
+volumes:
+  # Named volumes, never bind mounts, for database state: the repo lives on
+  # /mnt/c which WSL2 exposes over 9p, and a PostgreSQL data directory behind
+  # 9p would make storage the benchmark bottleneck. Named volumes live on the
+  # VM's ext4.
+  postgres-data:
+
+services:
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL — the single source of truth for the DNS namespace. Both
+  # PowerDNS instances read THIS database, which is what makes "both servers
+  # contain identical data" true by construction rather than by replication
+  # that could silently drift.
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: poc-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Consumed by configs/postgres/init/02-seed.sh on first initialisation.
+      IOT_MOCK_IP: ${IOT_MOCK_IP}
+      DNS_RECORD_COUNT: ${DNS_RECORD_COUNT}
+      DNS_ZONE: ${DNS_ZONE}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./configs/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${POSTGRES_IP}
+    # The 1M-row seed runs on first boot; this window must be generous or
+    # dependent services flap while the dataset loads.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    command:
+      # Tuned for a bulk load of 1M rows followed by read-heavy authoritative
+      # DNS serving. synchronous_commit=off is safe here: the dataset is
+      # regenerable, and the POC measures DNS/proxy performance, not durability
+      # of a seeded fixture.
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - work_mem=64MB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - max_connections=300
+      - -c
+      - synchronous_commit=off
+      - -c
+      - checkpoint_timeout=30min
+
+  # --------------------------------------------------------------------------
+  # PowerDNS authoritative pair. Identical configuration, identical database.
+  # The only difference is the node's own address, which appears in nothing
+  # that affects answers.
+  # --------------------------------------------------------------------------
+  pdns-1:
+    image: powerdns/pdns-auth-49:latest
+    container_name: poc-pdns-1
+    volumes:
+      - ./configs/powerdns/powerdns-1/pdns.conf:/etc/powerdns/pdns.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${PDNS_1_IP}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # The pdns and dnsdist images run as uid 953 (non-root) and port 53 is
+    # privileged. NET_BIND_SERVICE does not survive the image's setuid, so the
+    # per-netns unprivileged-port floor is lowered instead -- scoped to this
+    # container only.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    restart: unless-stopped
+
+  pdns-2:
+    image: powerdns/pdns-auth-49:latest
+    container_name: poc-pdns-2
+    volumes:
+      - ./configs/powerdns/powerdns-2/pdns.conf:/etc/powerdns/pdns.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${PDNS_2_IP}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # IoT Mock — the end-to-end mTLS endpoint, and the only component that
+  # terminates application TLS in either architecture.
+  # --------------------------------------------------------------------------
+  iot-mock:
+    build: ./images/iot-mock
+    image: poc-iot-mock
+    container_name: poc-iot-mock
+    environment:
+      TLS_CERT: /pki/server/server.crt
+      TLS_KEY: /pki/server/server.key
+      CLIENT_CA: /pki/ca/ca.crt
+      LISTEN_TLS: ":${IOT_MOCK_PORT}"
+      LISTEN_METRICS: ":9090"
+    volumes:
+      - ./pki:/pki:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${IOT_MOCK_IP}
+    healthcheck:
+      # Probes the plain-HTTP metrics listener, not the mTLS listener: a
+      # healthcheck needing a client certificate would report unhealthy
+      # whenever the PKI was mid-rotation, which is a false negative exactly
+      # when you least want one.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # dnsdist pair — TARGET's DNS layer. Each HAProxy node uses its OWN local
+  # dnsdist and nothing else; both dnsdist instances know both PowerDNS
+  # servers. There is no dnsdist-to-dnsdist relationship, so the two are
+  # configured identically on purpose.
+  # --------------------------------------------------------------------------
+  dnsdist-1:
+    build: ./images/dnsdist
+    image: poc-dnsdist
+    container_name: poc-dnsdist-1
+    # The upstream image wraps dnsdist in its own startup script, which
+    # swallows the config path. Run dnsdist directly so the exact invocation
+    # is visible in `docker inspect`. tini reaps zombies and forwards signals;
+    # without it container stop times are wrong and failover measurements drift.
+    entrypoint: ["/usr/bin/tini", "--", "dnsdist", "--supervised", "-C", "/etc/dnsdist/dnsdist.conf"]
+    volumes:
+      - ./configs/dnsdist/dnsdist-1/dnsdist.conf:/etc/dnsdist/dnsdist.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${DNSDIST_1_IP}
+    depends_on:
+      pdns-1:
+        condition: service_started
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    restart: unless-stopped
+
+  dnsdist-2:
+    build: ./images/dnsdist
+    image: poc-dnsdist
+    container_name: poc-dnsdist-2
+    entrypoint: ["/usr/bin/tini", "--", "dnsdist", "--supervised", "-C", "/etc/dnsdist/dnsdist.conf"]
+    volumes:
+      - ./configs/dnsdist/dnsdist-2/dnsdist.conf:/etc/dnsdist/dnsdist.conf:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${DNSDIST_2_IP}
+    depends_on:
+      pdns-2:
+        condition: service_started
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    restart: unless-stopped
+
+  # ==========================================================================
+  # HAProxy node pair — active/passive, one floating VIP.
+  #
+  # Each container IS a production HAProxy node: the proxy plus its Keepalived.
+  # They cannot be split into two containers, because a floating VIP belongs to
+  # a network namespace -- see images/haproxy/Dockerfile.
+  # ==========================================================================
+  haproxy-1:
+    build: ./images/haproxy
+    image: poc-haproxy-node
+    container_name: poc-haproxy-1
+    hostname: haproxy-1
+    environment:
+      NODE_NAME: haproxy-1
+      NODE_IP: ${HAPROXY_1_IP}
+      PEER_IP: ${HAPROXY_2_IP}
+      VIP_ADDRESS: ${VIP_ADDRESS}
+      VIP_PREFIX: ${VIP_PREFIX}
+      ARCH: target
+      CLIENT_PORT: ${CLIENT_PORT}
+      SQUID_PORT: ${SQUID_PORT}
+      STATS_USER: ${STATS_USER}
+      STATS_PASSWORD: ${STATS_PASSWORD}
+      CURRENT_GLOBAL_MAXCONN: ${CURRENT_GLOBAL_MAXCONN}
+      CURRENT_FRONTEND_MAXCONN: ${CURRENT_FRONTEND_MAXCONN}
+      CURRENT_FULLCONN: ${CURRENT_FULLCONN}
+      CURRENT_SERVER_MAXCONN: ${CURRENT_SERVER_MAXCONN}
+      STATS_PORT: "8404"
+      DNS_PORT: ${DNS_PORT}
+      IOT_MOCK_IP: ${IOT_MOCK_IP}
+      # The TARGET frontend binds this port and the resolver writes it into the
+      # destination. It MUST be present: without it the render produces
+      # 'bind *:' and 'int()', and HAProxy refuses to start.
+      IOT_MOCK_PORT: ${IOT_MOCK_PORT}
+      # Consumed by the TARGET health check, which probes the local dnsdist for
+      # the zone apex SOA. Must be present or the check aborts under `set -u`
+      # and the node reports unhealthy while actually serving.
+      DNS_ZONE: ${DNS_ZONE}
+      SQUID_1_IP: ${SQUID_1_IP}
+      SQUID_2_IP: ${SQUID_2_IP}
+      LOCAL_DNSDIST_IP: ${DNSDIST_1_IP}
+      VRRP_ROUTER_ID: "51"
+      VRRP_PRIORITY: "150"
+      VRRP_STATE: "MASTER"
+      VRRP_ADVERT_INT: "1"
+    volumes:
+      - ./configs/haproxy:/etc/haproxy:ro
+      - ./configs/keepalived/haproxy-1:/etc/keepalived:ro
+      # keepalived.conf references /opt/keepalived-checks/${ARCH}.sh; the check
+      # differs between architectures because the failure semantics differ.
+      - ./configs/keepalived/checks:/opt/keepalived-checks:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${HAPROXY_1_IP}
+    # VRRP must add the VIP to this container's interface and exchange VRRP
+    # advertisements. An explicit capability list rather than `privileged: true`
+    # so the container gets exactly what VRRP needs and nothing more.
+    cap_add:
+      - NET_ADMIN       # add/remove the floating VIP on the interface
+      - NET_RAW         # craft and receive VRRP advertisements (IP proto 112)
+      - NET_BROADCAST   # gratuitous ARP so peers relearn the VIP's MAC on failover
+    sysctls:
+      # Allow HAProxy to bind the VIP once Keepalived adds it, and to keep
+      # sockets alive across the address appearing/disappearing.
+      net.ipv4.ip_nonlocal_bind: "1"
+    ulimits:
+      # HAProxy sizes its FD budget at roughly 2 x maxconn (frontend + backend
+      # sides) and REFUSES TO START if it cannot raise RLIMIT_NOFILE that far:
+      #   [ALERT] Cannot raise FD limit to 400048, limit is 200000.
+      # The default 1024 would silently cap the 10k-tunnel test, and a soft
+      # limit below the hard limit only moves the failure to runtime.
+      nofile:
+        soft: 1000000
+        hard: 1000000
+    depends_on:
+      # The node does not hard-depend on dnsdist: a dnsdist outage should be
+      # observable as a real failure rather than masked by startup ordering.
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 15s
+    restart: unless-stopped
+
+  haproxy-2:
+    build: ./images/haproxy
+    image: poc-haproxy-node
+    container_name: poc-haproxy-2
+    hostname: haproxy-2
+    environment:
+      NODE_NAME: haproxy-2
+      NODE_IP: ${HAPROXY_2_IP}
+      PEER_IP: ${HAPROXY_1_IP}
+      VIP_ADDRESS: ${VIP_ADDRESS}
+      VIP_PREFIX: ${VIP_PREFIX}
+      ARCH: target
+      CLIENT_PORT: ${CLIENT_PORT}
+      SQUID_PORT: ${SQUID_PORT}
+      STATS_USER: ${STATS_USER}
+      STATS_PASSWORD: ${STATS_PASSWORD}
+      CURRENT_GLOBAL_MAXCONN: ${CURRENT_GLOBAL_MAXCONN}
+      CURRENT_FRONTEND_MAXCONN: ${CURRENT_FRONTEND_MAXCONN}
+      CURRENT_FULLCONN: ${CURRENT_FULLCONN}
+      CURRENT_SERVER_MAXCONN: ${CURRENT_SERVER_MAXCONN}
+      STATS_PORT: "8404"
+      DNS_PORT: ${DNS_PORT}
+      IOT_MOCK_IP: ${IOT_MOCK_IP}
+      IOT_MOCK_PORT: ${IOT_MOCK_PORT}
+      DNS_ZONE: ${DNS_ZONE}
+      SQUID_1_IP: ${SQUID_1_IP}
+      SQUID_2_IP: ${SQUID_2_IP}
+      LOCAL_DNSDIST_IP: ${DNSDIST_2_IP}
+      VRRP_ROUTER_ID: "51"
+      VRRP_PRIORITY: "100"
+      VRRP_STATE: "BACKUP"
+      VRRP_ADVERT_INT: "1"
+    volumes:
+      - ./configs/haproxy:/etc/haproxy:ro
+      - ./configs/keepalived/haproxy-2:/etc/keepalived:ro
+      - ./configs/keepalived/checks:/opt/keepalived-checks:ro
+    networks:
+      dc-lan:
+        ipv4_address: ${HAPROXY_2_IP}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BROADCAST
+    sysctls:
+      net.ipv4.ip_nonlocal_bind: "1"
+    ulimits:
+      nofile:
+        soft: 1000000
+        hard: 1000000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 15s
+    restart: unless-stopped

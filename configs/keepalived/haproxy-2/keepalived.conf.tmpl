@@ -1,0 +1,82 @@
+# ============================================================================
+# Keepalived — rendered per node by haproxy/entrypoint.sh.
+#
+# Both nodes use this SAME template; NODE_IP/PEER_IP/VRRP_PRIORITY/VRRP_STATE
+# differ per node and are supplied by compose.
+#
+# The check and notify scripts are referenced from /run/, NOT from the mounted
+# source directories. Keepalived refuses to execute any script writable by
+# group or other ("SECURITY VIOLATION - scripts are being executed but
+# script_security not enabled"), and every file under the repo is mode 777
+# because WSL2 exposes /mnt/c over 9p with fixed permissions. The entrypoint
+# therefore stages them root-owned 0700 under /run before starting Keepalived.
+# ============================================================================
+
+global_defs {
+    # Keepalived's default script user is the unprivileged `keepalived_script`.
+    # That account does not exist in this image, and rather than failing loudly
+    # Keepalived logs "Script user 'keepalived_script' does not exist" and then
+    # DISABLES the script. The visible symptom is a cluster where neither node
+    # ever takes the VIP -- and where a dnsdist failure would never trigger
+    # failover while every test still appeared to run. Setting script_user
+    # explicitly is required.
+    script_user root
+
+    # Refuse to execute any script writable by group or other. The entrypoint
+    # stages the checks root-owned 0700 under /run to satisfy this. Enabling it
+    # turns a permissions mistake into a startup error instead of a
+    # silently-degraded cluster.
+    enable_script_security
+}
+
+vrrp_script chk_node {
+    script "/run/keepalived/check.sh"
+    interval 2
+
+    # Two consecutive failures before acting: a single missed probe caused by
+    # scheduling jitter under benchmark load would otherwise move the VIP and
+    # corrupt a measurement run.
+    fall 2
+    rise 2
+
+    # -60 puts the MASTER's effective priority (150-60=90) below the BACKUP's
+    # 100, forcing a real election rather than relying on preemption. At e.g.
+    # -20 the MASTER would keep the VIP despite a dead local stack.
+    weight -60
+}
+
+vrrp_instance DC1 {
+    state ${VRRP_STATE}
+    interface eth0
+    virtual_router_id ${VRRP_ROUTER_ID}
+    priority ${VRRP_PRIORITY}
+    advert_int ${VRRP_ADVERT_INT}
+
+    # UNICAST VRRP.
+    # Multicast VRRP (224.0.0.18) is not usable between containers on a Docker
+    # bridge without host-level multicast routing. unicast_peer sends the same
+    # VRRP advertisements (IP protocol 112) directly to the peer, which the
+    # bridge forwards normally. Election, priority, preemption, advert interval
+    # and failover timing are unchanged -- this is real VRRP with a unicast
+    # destination. What it does NOT reproduce is switch-level IGMP snooping or
+    # physical-link failure detection. See ADR 0005.
+    unicast_src_ip ${NODE_IP}
+    unicast_peer {
+        ${PEER_IP}
+    }
+
+    virtual_ipaddress {
+        ${VIP_ADDRESS}/${VIP_PREFIX} dev eth0
+    }
+
+    track_script {
+        chk_node
+    }
+
+    # Transitions are logged with a timestamp by the notify hook; those lines
+    # are the evidence for the failover-timing numbers in the benchmark report.
+    notify_master "/run/keepalived/notify.sh MASTER"
+    notify_backup "/run/keepalived/notify.sh BACKUP"
+    notify_fault  "/run/keepalived/notify.sh FAULT"
+    notify_stop   "/run/keepalived/notify.sh STOP"
+}

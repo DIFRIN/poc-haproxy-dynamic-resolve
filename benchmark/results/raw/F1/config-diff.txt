@@ -1,0 +1,11 @@
+--- /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/configs/squid/squid-1/squid.conf	2026-09-15 23:58:39.000000000 +0200
++++ /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/F1/proxy-configs/prod.conf	2026-09-16 00:10:01.715893700 +0200
+@@ -92,7 +92,7 @@
+ # corrupt CPU and latency measurements. The security tests read the
+ # client-observed status code instead, and tests/fidelity/ re-runs this ACL
+ # block with logging on to capture Squid's own verdicts as evidence.
+-access_log none
++access_log stdio:/var/log/squid/access.log
+ cache_log /var/log/squid/cache.log
+ cache_store_log none
+ 

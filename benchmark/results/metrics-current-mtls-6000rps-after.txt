@@ -1,0 +1,31 @@
+# metrics snapshot: current-mtls-6000rps-after
+# 2026-09-14T17:21:46Z
+
+## host
+vCPUs: 20
+                 total        used        free      shared  buff/cache   available
+  Mem:           31930        2327       25650         199        4521       29602
+  Swap:           8192           0        8192
+
+## container resource usage (docker stats --no-stream)
+  NAME            CPU %     MEM USAGE / LIMIT     NET I/O
+  poc-pdns-2      0.01%     49.26MiB / 31.18GiB   159MB / 75.3MB
+  poc-haproxy-2   0.48%     37.23MiB / 31.18GiB   61.9kB / 63.5kB
+  poc-haproxy-1   0.41%     44.3MiB / 31.18GiB    2.8GB / 2.77GB
+  poc-pdns-1      0.01%     49.25MiB / 31.18GiB   159MB / 75.3MB
+  poc-iot-mock    0.00%     13.2MiB / 31.18GiB    663MB / 694MB
+  poc-postgres    0.00%     218.4MiB / 31.18GiB   85.7MB / 260MB
+  poc-squid-1     0.01%     160.1MiB / 31.18GiB   791MB / 1.34GB
+  poc-squid-2     0.01%     160.2MiB / 31.18GiB   791MB / 1.34GB
+
+## VIP ownership
+  haproxy-1: OWNS VIP (ACTIVE)
+  haproxy-2: standby
+
+## HAProxy stats (active node)
+  # pxname,svname,qcur,qmax,scur,smax,slim,stot,bin,bout,dreq,dresp,ereq,econ,eresp,wretr,wredis,status,weight,act,bck,chkfail,chkdown,lastchg,downtime,qlimit,pid,iid,sid,throttle,lbtot,tracked,type,rate,rate_lim,rate_max,check_status,check_code,check_duration,hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,req_rate,req_rate_max,req_tot,cli_abrt,srv_abrt,comp_in,comp_out,comp_byp,comp_rsp,lastsess,last_chk,last_agt,qtime,ctime,rtime,ttime,agent_status,agent_code,agent_duration,check_desc,agent_desc,check_rise,check_fall,check_health,agent_rise,agent_fall,agent_health,addr,cookie,mode,algo,conn_rate,conn_rate_max,conn_tot,intercepted,dcon,dses,wrew,connect,reuse,cache_lookups,cache_hits,srv_icur,src_ilim,qtime_max,ctime_max,rtime_max,ttime_max,eint,idle_conn_cur,safe_conn_cur,used_conn_cur,need_conn_est,uweight,agg_server_status,agg_server_check_status,agg_check_status,srid,sess_other,h1sess,h2sess,h3sess,req_other,h1req,h2req,h3req,proto,-,ssl_sess,ssl_reused_sess,ssl_failed_handshake,h2_headers_rcvd,h2_data_rcvd,h2_settings_rcvd,h2_rst_stream_rcvd,h2_goaway_rcvd,h2_detected_conn_protocol_errors,h2_detected_strm_protocol_errors,h2_rst_stream_resp,h2_goaway_resp,h2_open_connections,h2_backend_open_streams,h2_total_connections,h2_backend_total_streams,h1_open_connections,h1_open_streams,h1_total_connections,h1_total_streams,h1_bytes_in,h1_bytes_out,h1_spliced_bytes_in,h1_spliced_bytes_out,
+  fe_connect,FRONTEND,,,0,223,200000,472017,609628043,1743831598,0,0,0,,,,,OPEN,,,,,,,,,1,2,0,,,,0,0,0,5663,,,,,,,,,,,0,0,0,,,0,0,0,0,,,,,,,,,,,,,,,,,,,,,tcp,,0,5662,472017,,0,0,0,,,,,,,,,,,0,,,,,,,,,,472017,0,0,0,0,0,0,0,,-,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  be_squid,squid-1,0,0,0,124,,236009,304830722,871938498,,0,,0,7415,0,0,UP,1,1,0,0,0,442,0,,1,3,1,,236009,,2,0,,2832,L4OK,,0,,,,,,,,,,,6302,7415,,,,,5,,,0,0,0,163,,,,Layer4 check passed,,2,3,4,,,,172.28.0.21:3128,,tcp,,,,,,,,0,236009,0,,,0,,0,39,0,795,0,0,0,0,2,1,,,,0,,,,,,,,,,-,0,0,0,,,,,,,,,,,,,,,,,,,,,,
+  be_squid,squid-2,0,0,0,125,,236008,304797321,871893100,,0,,0,7285,0,0,UP,1,1,0,0,0,442,0,,1,3,2,,236008,,2,0,,2831,L4OK,,0,,,,,,,,,,,6201,7285,,,,,5,,,0,0,0,163,,,,Layer4 check passed,,2,3,4,,,,172.28.0.22:3128,,tcp,,,,,,,,0,236008,0,,,0,,0,39,0,837,0,0,0,0,2,1,,,,0,,,,,,,,,,-,0,0,0,,,,,,,,,,,,,,,,,,,,,,
+
+## dnsdist backends (TARGET)

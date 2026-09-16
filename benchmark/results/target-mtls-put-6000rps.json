@@ -1,0 +1,160 @@
+{
+  "achieved_rps": 1288.708,
+  "attempts": 77327,
+  "body_bytes": 256,
+  "bytes_received": 266147415,
+  "bytes_sent": 268414158,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 50,
+  "connect_error": 0,
+  "duration_seconds": 60,
+  "errors_sample": [
+    "timeout: read tcp 172.28.0.2:44668-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: dial tcp 172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44166-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44790-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44740-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44404-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44306-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44504-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44724-\u003e172.28.0.10:443: i/o timeout",
+    "timeout: read tcp 172.28.0.2:44550-\u003e172.28.0.10:443: i/o timeout"
+  ],
+  "handshakes_completed": 77297,
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {
+    "200": 77277
+  },
+  "identity_checked": 77277,
+  "identity_mismatch": 0,
+  "insecure_skip_verify": false,
+  "label": "target-mtls-put-6000rps",
+  "latency_ms": {
+    "p50": 34.605,
+    "p90": 64.58,
+    "p95": 75.495,
+    "p99": 99.339,
+    "max": 210.797,
+    "mean": 38.238
+  },
+  "latency_samples": 77327,
+  "latency_scope": "per request: from just before the TCP connect to the last byte of the HTTP response (TCP+TLS+PUT); refused attempts are timed up to the refusal",
+  "measured_seconds": 60.004,
+  "method": "PUT",
+  "mode": "tls",
+  "mtls_rejected": 0,
+  "notes": [
+    "DIRECT TLS, no CONNECT: this mode exercises the TARGET architecture (SNI passthrough, ADR 0012). The proxy reads the SNI without terminating TLS, resolves it, validates the RESOLVED address, and tunnels raw TLS to the IoT Mock.",
+    "TARGET refuses a bad destination by CLOSING THE TCP CONNECTION -- TCP mode has no HTTP status to send. A destination-policy rejection therefore appears as tls_error with an EOF/reset error string, never as an HTTP status. For the security corpus this is the expected (passing) result.",
+    "mtls_rejected is reserved for a TLS alert sent by the IoT Mock about OUR client certificate (missing, expired, untrusted). It is distinguished from tls_error by the TLS alert number, not by string matching.",
+    "latency_ms covers EVERY attempt including refused ones: for the security corpus the elapsed time to the refusal is itself the measurement.",
+    "identity_checked/identity_mismatch compare the `sni` field in the IoT Mock's response against the name this client actually requested. The device-facing PUT response carries that field on every successful request, so the identity check is active for the measured workload itself, not only for GET /.",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed.",
+    "the measured workload request is PUT / with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload."
+  ],
+  "outcomes_sample": [
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 24.815,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 24.983,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 36.168,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 36.26,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 41.959,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 49.718,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 51.614,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 49.16,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 46.65,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    },
+    {
+      "name": "iot0000001.test.domain",
+      "sni": "iot0000001.test.domain",
+      "peer": "iot-client-valid",
+      "status": 200,
+      "outcome": "success",
+      "latency_ms": 50.886,
+      "body": "{\"bytes\":256,\"method\":\"PUT\",\"path\":\"/\",\"peer\":\"iot-client-valid\",\"sni\":\"iot0000001.test.domain\",\"time\":\"2026-09-15T07:58:22Z\"}"
+    }
+  ],
+  "path": "/",
+  "proxy": "172.28.0.10:443",
+  "random_host": true,
+  "servername": "iot0000001.test.domain (pinned by -servername)",
+  "start_time": "2026-09-15T07:58:22Z",
+  "success": 77277,
+  "target_rps": 6000,
+  "timeout": 50,
+  "tls_error": 0,
+  "warmup_seconds": 10,
+  "zone": "test.domain"
+}

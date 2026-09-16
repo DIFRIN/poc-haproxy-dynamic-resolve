@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>E2-current-expired</title><style>
+:root{--bg:#fbfbfa;--fg:#1b1b19;--muted:#6b6b66;--line:#dcdcd6;--card:#fff;
+--ok:#1a7f37;--warn:#9a6700;--bad:#b42318;--accent:#0b5fff}
+@media (prefers-color-scheme:dark){:root{--bg:#16161a;--fg:#ececec;--muted:#a0a0a8;
+--line:#2e2e35;--card:#1e1e23;--ok:#4ac26b;--warn:#d4a72c;--bad:#ff7b72;--accent:#6ea8ff}}
+*{box-sizing:border-box}
+body{margin:0;padding:32px 24px 64px;background:var(--bg);color:var(--fg);
+font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:900px;margin:0 auto}
+h1{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+margin:34px 0 10px;font-weight:600}
+.sub{color:var(--muted);margin:0 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:0 0 16px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+.kpis{display:flex;flex-wrap:wrap;gap:14px}
+.kpi{flex:1 1 150px;background:var(--card);border:1px solid var(--line);
+border-radius:10px;padding:14px 16px}
+.kpi .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+ul{margin:6px 0 0;padding-left:20px}li{margin:3px 0}
+footer{margin-top:40px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
+</style></head>
+<body><main>
+<h1>E2-current-expired</h1>
+<p class="sub">benchmark result &middot; rendered 2026-09-15 22:07 UTC</p>
+<div class="kpis"><div class="kpi"><div class="v ">300 rps</div><div class="k">throughput</div></div><div class="kpi"><div class="v warn">0</div><div class="k">successful</div></div><div class="kpi"><div class="v ">3.25 ms</div><div class="k">p50 latency</div></div><div class="kpi"><div class="v ">3.83 ms</div><div class="k">p99 latency</div></div></div><h2>Latency (ms)</h2><table><thead><tr><th>percentile</th><th>ms</th></tr></thead><tbody><tr><td>p50</td><td class="num">3.25</td></tr><tr><td>p90</td><td class="num">3.48</td></tr><tr><td>p95</td><td class="num">3.55</td></tr><tr><td>p99</td><td class="num">3.83</td></tr><tr><td>max</td><td class="num">6.34</td></tr><tr><td>mean</td><td class="num">3.29</td></tr></tbody></table><h2>Outcome counters</h2><table><thead><tr><th>counter</th><th>count</th></tr></thead><tbody><tr><td>connect error</td><td class="num">0</td></tr><tr><td>tls error</td><td class="num">0</td></tr><tr><td>http error</td><td class="num">0</td></tr><tr><td>timeout</td><td class="num">1</td></tr><tr><td>mtls rejected</td><td class="num">900</td></tr><tr><td>connect rejected</td><td class="num">0</td></tr></tbody></table><h2>Status codes</h2><table><thead><tr><th>code</th><th>responses</th></tr></thead><tbody><tr><td>200</td><td class="num">901</td></tr></tbody></table><h2>Tunnels</h2><table><thead><tr><th>metric</th><th>value</th></tr></thead><tbody><tr><td>opened</td><td class="num">900</td></tr><tr><td>persistent</td><td>False</td></tr><tr><td>requests per tunnel</td><td class="num">100</td></tr></tbody></table><h2>Method notes</h2><ul><li>connect_rejected means the proxy refused the CONNECT; the refusal status code is counted in connect_status_codes. It is an expected outcome for the security tests, not an error.</li><li>latency_ms are exact percentiles (nearest-rank) over the merged, sorted per-worker samples; memory scales with sample count (8 bytes/sample, see latency_samples).</li><li>bytes_sent/bytes_received are raw TCP bytes, so they include CONNECT framing and TLS record overhead.</li><li>achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).</li><li>Request-level failures never change the exit code; exit 0 means the run completed.</li><li>the measured workload request is PUT / with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload.</li></ul><h2>Error sample</h2><div class="card mono"><ul><li>mtls_rejected: remote error: tls: expired certificate</li><li>timeout: context deadline exceeded</li></ul></div>
+<h2>Run parameters</h2>
+<table><thead><tr><th>parameter</th><th>value</th></tr></thead><tbody><tr><td>mode</td><td>connect</td></tr><tr><td>proxy</td><td>172.28.0.10:3128</td></tr><tr><td>target host</td><td>iot0000001.test.domain</td></tr><tr><td>servername</td><td>iot0000001.test.domain</td></tr><tr><td>start time</td><td>2026-09-14T17:49:38Z</td></tr><tr><td>duration seconds</td><td class="num">3</td></tr><tr><td>concurrency</td><td class="num">1</td></tr><tr><td>target rps</td><td class="num">0</td></tr><tr><td>label</td><td>E2-current-expired</td></tr></tbody></table>
+<h2>Other reported fields</h2><table><thead><tr><th>field</th><th>value</th></tr></thead><tbody><tr><td>target_port</td><td class="num">443</td></tr></tbody></table>
+<footer>Generated by <span class="mono">scripts/report.py</span> from
+<span class="mono">benchmark/results/E2c-expired.json</span>. Rendered from the raw result file; no value
+on this page is recomputed or estimated.</footer>
+</main></body></html>

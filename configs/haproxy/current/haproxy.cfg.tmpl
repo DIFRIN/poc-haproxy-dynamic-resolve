@@ -1,0 +1,200 @@
+# ============================================================================
+# CURRENT — HAProxy in front of the shared Squid layer.
+#
+# Rendered per node by haproxy/entrypoint.sh.
+#
+# WHAT THIS DOES
+#   The IoT client issues CONNECT to the VIP:${CLIENT_PORT}. HAProxy
+#   TCP-load-balances that byte stream across BOTH Squid instances, which
+#   listen on ${SQUID_PORT}. Squid terminates CONNECT, performs DNS resolution
+#   for the destination, and establishes the tunnel. mTLS runs end-to-end inside
+#   that tunnel; neither HAProxy nor Squid sees plaintext.
+#
+#   NOTE THE TWO PORTS. The client-facing port and the Squid port are DIFFERENT
+#   in production (38888 and 4443). An earlier revision of this POC used one
+#   PROXY_PORT for both hops, which was a fidelity defect and is corrected here.
+#   See docs/adr/0028-production-config-fidelity.md.
+#
+# PRODUCTION FIDELITY
+#   Every directive below that carries a production value reproduces the real
+#   production HAProxy config verbatim, including its connection ceilings:
+#
+#     production name          production value    this template
+#     -----------------------  ------------------  -------------------------
+#     global   maxconn         10000               ${CURRENT_GLOBAL_MAXCONN}
+#     frontend maxconn          6400               ${CURRENT_FRONTEND_MAXCONN}
+#     backend  fullconn         6400               ${CURRENT_FULLCONN}
+#     server   maxconn          3200  (x2 Squid)   ${CURRENT_SERVER_MAXCONN}
+#     timeout connect          1m                  1m
+#     timeout server/client    60m                 60m
+#     retries                  3                   3
+#     option redispatch        set                 set
+#
+#   These are NOT cosmetic. 2 x ${CURRENT_SERVER_MAXCONN} is the hard ceiling on
+#   concurrent tunnels, and at production's values it is 6400 — BELOW the 10,000
+#   simultaneous tunnels that brief §15 makes mandatory. That is a property of
+#   the production architecture, and reproducing it is the point.
+#
+#   POC names map to production names as: fe_connect = frontend_proxyhttp,
+#   be_squid = backend_proxyhttp.
+#
+# WHY HAPROXY IS IN TCP MODE HERE
+#   HAProxy cannot terminate CONNECT (see ADR 0011). It is a load balancer in
+#   front of the component that can. TCP mode means HAProxy parses nothing --
+#   it does not even read the CONNECT line, and it performs no DNS resolution
+#   of its own. All DNS for CONNECT destinations is Squid's job in this
+#   architecture, which is precisely what the TARGET DNS comparison measures.
+#
+#   This also has a security consequence that is measured, not assumed: because
+#   HAProxy parses nothing and production Squid validates nothing, CURRENT has
+#   NO destination validation at all. See ADR 28.
+#
+# THE SQUID LAYER IS COMMON, NOT PAIRED
+#   Both Squids are reachable from whichever HAProxy owns the VIP. There is no
+#   HAProxy-1 -> Squid-1 affinity. When the VIP moves, the new active HAProxy
+#   uses the same two Squids. See ADR 0008.
+#
+#   This is also CURRENT's structural weakness: the Squid pair is a shared fate
+#   domain below a highly-available frontend. Losing both Squids takes the
+#   datacenter down no matter what Keepalived does, and no amount of VIP
+#   movement helps. TARGET removes this layer.
+#
+# DELIBERATE DEVIATIONS FROM PRODUCTION (observability only, no effect on the
+# data path, and each one is called out at its directive):
+#   * logging goes to stdout instead of syslog 127.0.0.1 local1, so `docker
+#     logs` holds the traffic evidence the benchmark cites;
+#   * the metrics/stats listener is bound to the NODE address rather than
+#     production's 127.0.0.1:15080, so the harness can scrape it from outside
+#     the container. Production's loopback binding is modelled alongside it.
+# ============================================================================
+
+global
+    # PRODUCTION: maxconn 10000. This is the process-wide ceiling; the binding
+    # constraint is lower (see the frontend and servers).
+    maxconn ${CURRENT_GLOBAL_MAXCONN}
+    # PRODUCTION: ulimit-n 65536. Kept for fidelity; in a container the real
+    # limit comes from the compose file's nofile ulimit, which must be >= this
+    # or HAProxy refuses to start.
+    ulimit-n 65536
+    # DEVIATION: production logs to syslog 127.0.0.1 local1. The POC logs to
+    # stdout so the rendered config and the traffic records land in
+    # `docker logs` and stay auditable.
+    log stdout format raw local0 info
+    # POC ADDITION (not in production): pinning threads keeps the CURRENT and
+    # TARGET resource comparison fair, since both run under the same budget.
+    nbthread 8
+    user haproxy
+    group haproxy
+    stats socket /var/run/haproxy/admin.sock mode 660 level admin
+    stats timeout 30s
+    # POC ADDITION: production has no reloads, so it needs no linger bound.
+    hard-stop-after 30s
+
+defaults
+    log     global
+    mode    tcp
+    option  tcplog
+    option  dontlognull
+    # PRODUCTION: retries 3 + option redispatch. Redispatch is what lets a
+    # CONNECT that arrived on the Squid that just died be retried on the
+    # surviving one.
+    retries 3
+    option  redispatch
+    # PRODUCTION: timeout connect 1m. Generous on purpose -- a slow Squid
+    # accept under load is not a failed tunnel.
+    timeout connect 1m
+    # PRODUCTION: timeout server/client 60m. Matched so the two architectures
+    # are measured under the same connection-lifetime assumptions. 10,000
+    # simultaneous long-lived tunnels is a headline requirement of the POC; a
+    # short client timeout would silently cap it and make the concurrency
+    # result meaningless.
+    timeout server  60m
+    timeout client  60m
+    timeout check   2s
+
+# ---------------------------------------------------------------------------
+# Client-facing CONNECT listener.
+#
+# No DNS resolution, no destination policy, no inspection: HAProxy forwards the
+# byte stream. This is what makes CURRENT simple, and also what makes it
+# dependent on Squid for every security property beyond load distribution.
+# ---------------------------------------------------------------------------
+frontend fe_connect
+    # PRODUCTION: bind :38888. CLIENT_PORT carries that value.
+    bind *:${CLIENT_PORT}
+    mode tcp
+    # PRODUCTION: maxconn 6400.
+    maxconn ${CURRENT_FRONTEND_MAXCONN}
+    default_backend be_squid
+
+    # PRODUCTION CARRIES THESE TWO DIRECTIVES, AND THEY ARE INERT.
+    # `option http-keep-alive` is an HTTP-mode option; this frontend is
+    # `mode tcp`, where HAProxy does not parse HTTP at all. Verified against
+    # HAProxy 3.0.27: the config parses with zero warnings, and an end-to-end
+    # CONNECT test confirms HAProxy relays the byte stream opaquely (Squid's own
+    # 403/503 reach the client unchanged) rather than interpreting CONNECT
+    # itself. They are reproduced here so the POC runs the production config
+    # byte-for-byte, and flagged so nobody mistakes them for a working
+    # keep-alive policy. See ADR 28.
+    option  http-keep-alive
+    timeout http-keep-alive 2s
+
+    # PRODUCTION: timeout client 60m (restated at frontend scope).
+    timeout client 60m
+
+# ---------------------------------------------------------------------------
+# The common Squid layer.
+#
+# roundrobin spreads new tunnels evenly across both Squids. Health checking is
+# a plain TCP connect: Squid's readiness is defined by its listener accepting,
+# and a deeper probe would add a synthetic CONNECT that Squid would have to
+# resolve, polluting the DNS measurements this POC exists to take.
+#
+# `no-check-ssl` is reproduced from production. It is a deprecated no-op here:
+# it only ever affected SSL health checks, and this check is a plain TCP
+# connect. Retained so the config matches production, not because it acts.
+#
+# `maxconn ${CURRENT_SERVER_MAXCONN}` on each server is the ceiling that matters.
+# Two Squids give ${CURRENT_FULLCONN} concurrent tunnels in total, and no more.
+# ---------------------------------------------------------------------------
+backend be_squid
+    mode tcp
+    balance roundrobin
+    # PRODUCTION: fullconn 6400. Above this many connections HAProxy switches
+    # from roundrobin to leastconn-style dynamic weighting.
+    fullconn ${CURRENT_FULLCONN}
+    option  http-keep-alive
+    option tcp-check
+    server squid-1 ${SQUID_1_IP}:${SQUID_PORT} maxconn ${CURRENT_SERVER_MAXCONN} check inter 2s fall 3 rise 2 no-check-ssl
+    server squid-2 ${SQUID_2_IP}:${SQUID_PORT} maxconn ${CURRENT_SERVER_MAXCONN} check inter 2s fall 3 rise 2 no-check-ssl
+
+# ---------------------------------------------------------------------------
+# PRODUCTION's administrative stats listener, reproduced: loopback only, so it
+# is unreachable from the client network. `stats auth` in production is
+# configured with an EMPTY user and a password, which is worth noting -- an
+# empty username is accepted by HAProxy but is a config smell, and the POC uses
+# a named user instead. The password is injected at render time.
+# ---------------------------------------------------------------------------
+listen stats
+    bind 127.0.0.1:15080
+    mode http
+    stats enable
+    stats hide-version
+    stats uri /stats
+    stats auth ${STATS_USER}:${STATS_PASSWORD}
+
+# ---------------------------------------------------------------------------
+# POC ADDITION: stats + Prometheus metrics on the NODE address, so the
+# benchmark harness can scrape them from outside the container. Bound to the
+# node address, never the VIP, so backend topology is never exposed on a
+# client-facing address.
+# ---------------------------------------------------------------------------
+frontend fe_admin
+    bind ${NODE_IP}:${STATS_PORT}
+    mode http
+    option httplog
+    no log
+    http-request use-service prometheus-exporter if { path /metrics }
+    stats enable
+    stats uri /stats
+    stats refresh 5s

@@ -1,0 +1,130 @@
+{
+  "achieved_rps": 7.999,
+  "attempts": 48,
+  "body_bytes": 256,
+  "bytes_received": 0,
+  "bytes_sent": 70453,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 2,
+  "connect_error": 0,
+  "duration_seconds": 6,
+  "errors_sample": [
+    "tls_error: EOF",
+    "timeout: dial tcp 172.28.0.10:443: i/o timeout"
+  ],
+  "handshakes_completed": 0,
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {},
+  "identity_checked": 0,
+  "identity_mismatch": 0,
+  "insecure_skip_verify": false,
+  "label": "b3-ssrf-ula6b.test.domain",
+  "latency_ms": {
+    "p50": 2.138,
+    "p90": 3.465,
+    "p95": 3.65,
+    "p99": 9.928,
+    "max": 9.928,
+    "mean": 2.328
+  },
+  "latency_samples": 48,
+  "latency_scope": "per request: from just before the TCP connect to the last byte of the HTTP response (TCP+TLS+PUT); refused attempts are timed up to the refusal",
+  "measured_seconds": 6.001,
+  "method": "PUT",
+  "mode": "tls",
+  "mtls_rejected": 0,
+  "notes": [
+    "DIRECT TLS, no CONNECT: this mode exercises the TARGET architecture (SNI passthrough, ADR 0012). The proxy reads the SNI without terminating TLS, resolves it, validates the RESOLVED address, and tunnels raw TLS to the IoT Mock.",
+    "TARGET refuses a bad destination by CLOSING THE TCP CONNECTION -- TCP mode has no HTTP status to send. A destination-policy rejection therefore appears as tls_error with an EOF/reset error string, never as an HTTP status. For the security corpus this is the expected (passing) result.",
+    "mtls_rejected is reserved for a TLS alert sent by the IoT Mock about OUR client certificate (missing, expired, untrusted). It is distinguished from tls_error by the TLS alert number, not by string matching.",
+    "latency_ms covers EVERY attempt including refused ones: for the security corpus the elapsed time to the refusal is itself the measurement.",
+    "identity_checked/identity_mismatch compare the `sni` field in the IoT Mock's response against the name this client actually requested. The device-facing PUT response carries that field on every successful request, so the identity check is active for the measured workload itself, not only for GET /.",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed.",
+    "the measured workload request is PUT /health with a 256-byte body, which is what the IoT devices accept. GET /health is an infrastructure probe and is never the measured workload."
+  ],
+  "outcomes_sample": [
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 9.928,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.722,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 3.251,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.199,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.261,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.437,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 3.438,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 1.339,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.524,
+      "error": "EOF"
+    },
+    {
+      "name": "ssrf-ula6b.test.domain",
+      "status": 0,
+      "outcome": "tls_error",
+      "latency_ms": 2.147,
+      "error": "EOF"
+    }
+  ],
+  "path": "/health",
+  "proxy": "172.28.0.10:443",
+  "random_host": false,
+  "servername": "ssrf-ula6b.test.domain (pinned by -servername)",
+  "start_time": "2026-09-15T23:23:49Z",
+  "success": 0,
+  "target_rps": 8,
+  "timeout": 1,
+  "tls_error": 47,
+  "warmup_seconds": 0,
+  "zone": "test.domain"
+}

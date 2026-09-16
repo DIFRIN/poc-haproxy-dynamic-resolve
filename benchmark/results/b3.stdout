@@ -1,0 +1,213 @@
+
+================================================================================
+GROUP b3-target-security   2026-09-15T23:21:51Z   arch=target
+================================================================================
+VIP=172.28.0.10:443  haproxy owner: haproxy-1
+corpus size: 22 names (raw: /mnt/c/Dev/wsl-shared/poc-haproxy-dynamic-resolve/benchmark/results/raw/b3-target-security/corpus.txt)
+
+---- DNS: what the local dnsdist returns for each corpus name ----
+
+---- SSRF corpus (6s per name, 8 req/s, timeout 5s) ----
+     (ssrf-rebind is excluded here and handled in its own section below: it has BOTH a
+      permitted and a forbidden answer, so "always refused" is the wrong assertion for it)
+
+  name=ssrf-benchmark.test.domain
+    resolves to : A 198.18.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=0.851
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-benchmark.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=0.851ms)
+
+  name=ssrf-broadcast.test.domain
+    resolves to : A 255.255.255.255
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.862
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-broadcast.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.862ms)
+
+  name=ssrf-cgnat.test.domain
+    resolves to : A 100.64.0.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.474
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-cgnat.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.474ms)
+
+  name=ssrf-linklocal.test.domain
+    resolves to : A 169.254.1.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.469
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-linklocal.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.469ms)
+
+  name=ssrf-linklocal6.test.domain
+    resolves to : AAAA fe80::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.21
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-linklocal6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.21ms)
+
+  name=ssrf-loopback-alt.test.domain
+    resolves to : A 127.1.2.3
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.561
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback-alt.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.561ms)
+
+  name=ssrf-loopback.test.domain
+    resolves to : A 127.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.562
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.562ms)
+
+  name=ssrf-loopback6.test.domain
+    resolves to : AAAA ::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.446
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-loopback6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.446ms)
+
+  name=ssrf-multicast.test.domain
+    resolves to : A 224.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.47
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-multicast.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.47ms)
+
+  name=ssrf-multicast6.test.domain
+    resolves to : AAAA ff02::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.526
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-multicast6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.526ms)
+
+  name=ssrf-private10.test.domain
+    resolves to : A 10.0.0.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.507
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private10.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.507ms)
+
+  name=ssrf-private172.test.domain
+    resolves to : A 172.16.5.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.5
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private172.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.5ms)
+
+  name=ssrf-private192.test.domain
+    resolves to : A 192.168.1.5
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.406
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-private192.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.406ms)
+
+  name=ssrf-reserved.test.domain
+    resolves to : A 240.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.312
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-reserved.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.312ms)
+
+  name=ssrf-thisnet.test.domain
+    resolves to : A 0.1.2.3
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.15
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-thisnet.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.15ms)
+
+  name=ssrf-ula6.test.domain
+    resolves to : AAAA fc00::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.533
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-ula6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.533ms)
+
+  name=ssrf-ula6b.test.domain
+    resolves to : AAAA fd12:3456::1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.138
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-ula6b.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.138ms)
+
+  name=ssrf-unspecified.test.domain
+    resolves to : A 0.0.0.0
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.294
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-unspecified.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.294ms)
+
+  name=ssrf-unspecified6.test.domain
+    resolves to : AAAA ::
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.473
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-unspecified6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.473ms)
+
+  name=ssrf-v4mapped-priv6.test.domain
+    resolves to : AAAA ::ffff:10.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.314
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-v4mapped-priv6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.314ms)
+
+  name=ssrf-v4mapped6.test.domain
+    resolves to : AAAA ::ffff:127.0.0.1
+    attempts=48 success=0 tls_error=47 mtls_rejected=0 http_error=0 timeout=1
+    http_status_codes={}   p50_refusal_ms=2.163
+    failure mode: tls_error: EOF
+PASS  B3 ssrf-v4mapped6.test.domain REFUSED (success=0, no HTTP status; 47 tls_error/0 mtls_rejected/1 timeout of 48; p50=2.163ms)
+
+---- unresolvable / failing names ----
+
+  name=nx.test.domain
+    resolves to : (undefined -> NXDOMAIN)
+    attempts=6 success=0 tls_error=4 mtls_rejected=0 http_error=0 timeout=2
+    http_status_codes={}   p50_refusal_ms=1892.08
+    failure mode: tls_error: EOF
+PASS  B3 nx.test.domain REFUSED (success=0, no HTTP status; 4 tls_error/0 mtls_rejected/2 timeout of 6; p50=1892.08ms)
+
+  name=servfail.test.domain
+    resolves to : (intended SERVFAIL)
+    attempts=6 success=0 tls_error=4 mtls_rejected=0 http_error=0 timeout=2
+    http_status_codes={}   p50_refusal_ms=1887.951
+    failure mode: tls_error: EOF
+PASS  B3 servfail.test.domain REFUSED (success=0, no HTTP status; 4 tls_error/0 mtls_rejected/2 timeout of 6; p50=1887.951ms)
+
+---- ssrf-rebind: policy must follow the RESOLVED address ----
+  dnsdist answer order over 12 queries (comma-separated, first = one HAProxy may pick):
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      127.0.0.1,172.28.0.60
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+      172.28.0.60,127.0.0.1
+  orderings observed: permitted-first=7  forbidden-first=5
+PASS  B3.rebind resolver returns BOTH orderings (permitted-first=7, forbidden-first=5)
+  attempts=100 success(permitted address)=50 tls_error(forbidden address)=49 http_status_codes={'200': 50}
+  (successes are the connections the resolver pointed at 172.28.0.60; refusals are the
+   connections it pointed at 127.0.0.1. Both outcomes from ONE name prove the decision
+   was made on the resolved address.)
+PASS  B3.rebind the forbidden address was refused at least once (tls_error=49)
+PASS  B3.rebind the permitted answer was NOT collateral damage (it still succeeded 50x)
+  note: a success proves the connection reached the IoT Mock (an mTLS handshake
+        against 127.0.0.1 inside the node container cannot produce HTTP 200).
+
+---- rcode evidence (dnstest against the local dnsdist) ----
+  nx.test.domain: rcode="rcode": "NXDOMAIN" answers="answers": []
+  servfail.test.domain: rcode="rcode": "NXDOMAIN" answers="answers": []
+  test.domain: rcode="rcode": "NOERROR" answers="answers": []
+  FINDING (not a security failure): servfail.test.domain returns NXDOMAIN, not the
+  SERVFAIL configs/postgres/init/02-seed.sh documents. It is still refused by the proxy, so the
+  security property holds; the corpus entry simply does not test what it claims to.
+  The real SERVFAIL path (all PowerDNS backends down) is tested in the failover group.
+
+---- HAProxy log evidence (last 15 fe_tls lines on the active node) ----
+
+---- b3-target-security: 26 PASS, 0 FAIL, 0 SKIP ----

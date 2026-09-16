@@ -1,0 +1,115 @@
+{
+  "achieved_qps": 2363.009,
+  "answers_sample": [
+    {
+      "name": "iot0554033.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0000690.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0880737.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0132764.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0405998.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0932594.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0910192.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0171182.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0798537.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    },
+    {
+      "name": "iot0120718.test.domain",
+      "rcode": "NOERROR",
+      "answers": [
+        "172.28.0.60"
+      ]
+    }
+  ],
+  "concurrency": 50,
+  "duration_seconds": 60,
+  "errors_sample": [],
+  "fixed_name": "",
+  "host_count": 1000000,
+  "label": "dnsdist-2",
+  "latency_ms": {
+    "p50": 0.549,
+    "p90": 0.634,
+    "p95": 0.66,
+    "p99": 0.736,
+    "max": 2.342,
+    "mean": 0.557
+  },
+  "latency_samples": 141781,
+  "latency_scope": "per query: from just before the UDP send to the matching response (or the 2s timeout)",
+  "measured_seconds": 60,
+  "mode": "dns",
+  "network_error": 0,
+  "notes": [
+    "RD=0: queries are sent without recursion desired, as required for authoritative servers.",
+    "For UDP, a response with the TC bit set is counted in 'truncated' and is NOT retried over TCP automatically; its rcode is still counted in 'rcodes'. Truncation is reported as a finding, not papered over.",
+    "latency_ms are exact percentiles (nearest-rank) over the merged, sorted per-worker samples; memory scales with sample count (8 bytes/sample, see latency_samples).",
+    "achieved_qps = queries_sent / measured_seconds (the actual measurement window).",
+    "queries_sent counts queries actually written (or attempted for TCP); timeout and network_error are outcomes, not sent-query failures."
+  ],
+  "proto": "udp",
+  "qtype": "A",
+  "queries_sent": 141781,
+  "rcodes": {
+    "NOERROR": 141781
+  },
+  "responses_received": 141781,
+  "server": "172.28.0.32:53",
+  "start_time": "2026-09-15T08:01:34Z",
+  "target_qps": 5000,
+  "timeout": 0,
+  "truncated": 0,
+  "warmup_seconds": 0,
+  "zone": "test.domain"
+}

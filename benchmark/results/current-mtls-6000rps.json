@@ -1,0 +1,68 @@
+{
+  "achieved_rps": 1255.766,
+  "attempts": 56519,
+  "bytes_received": 189890686,
+  "bytes_sent": 186619833,
+  "client_cert": "/pki/clients/client-valid.crt",
+  "concurrency": 200,
+  "connect_error": 0,
+  "connect_rejected": 0,
+  "connect_status_codes": {
+    "200": 56510
+  },
+  "duration_seconds": 45,
+  "errors_sample": [
+    "timeout: read tcp 172.28.0.2:12920-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: dial tcp 172.28.0.10:3128: i/o timeout",
+    "timeout: write tcp 172.28.0.2:16800-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:15750-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:18478-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:17088-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:17076-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:18094-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:18430-\u003e172.28.0.10:3128: i/o timeout",
+    "timeout: read tcp 172.28.0.2:16398-\u003e172.28.0.10:3128: i/o timeout"
+  ],
+  "host_count": 1000000,
+  "http_error": 0,
+  "http_status_codes": {
+    "200": 56310
+  },
+  "insecure_skip_verify": false,
+  "label": "current-mtls-6000rps",
+  "latency_ms": {
+    "p50": 138.279,
+    "p90": 268.219,
+    "p95": 322.144,
+    "p99": 431.047,
+    "max": 837.924,
+    "mean": 150.838
+  },
+  "latency_samples": 56519,
+  "latency_scope": "short_lived: per-request latency measured from just before the CONNECT write to the last byte of the HTTP response (TCP+CONNECT+TLS+GET)",
+  "measured_seconds": 45.008,
+  "mode": "connect",
+  "mtls_rejected": 0,
+  "notes": [
+    "connect_rejected means the proxy refused the CONNECT; the refusal status code is counted in connect_status_codes. It is an expected outcome for the security tests, not an error.",
+    "latency_ms are exact percentiles (nearest-rank) over the merged, sorted per-worker samples; memory scales with sample count (8 bytes/sample, see latency_samples).",
+    "bytes_sent/bytes_received are raw TCP bytes, so they include CONNECT framing and TLS record overhead.",
+    "achieved_rps = attempts / measured_seconds (the actual measurement window, which may be shorter than -duration if interrupted).",
+    "Request-level failures never change the exit code; exit 0 means the run completed.",
+    "-warmup traffic runs BEFORE the measurement window, so total wall time is warmup_seconds + duration_seconds; warmup counters and latency samples were discarded."
+  ],
+  "persistent": false,
+  "proxy": "172.28.0.10:3128",
+  "random_host": true,
+  "requests_per_tunnel": 100,
+  "servername": "\u003cper-request target host\u003e",
+  "start_time": "2026-09-14T17:20:50Z",
+  "success": 56310,
+  "target_host": "iot0000001.test.domain",
+  "target_port": 443,
+  "target_rps": 6000,
+  "timeout": 209,
+  "tls_error": 0,
+  "tunnels_opened": 56393,
+  "warmup_seconds": 10
+}
